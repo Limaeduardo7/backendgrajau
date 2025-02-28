@@ -1,0 +1,299 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  clerkId       String         @unique
+  name          String
+  email         String         @unique
+  phone         String?
+  document      String?        @unique
+  documentType  String?
+  role          Role           @default(USER)
+  status        Status         @default(PENDING)
+  businesses    Business[]
+  jobs          Job[]
+  applications  Application[]
+  professional  Professional?
+  reviews       Review[]
+  subscriptions Subscription[]
+  posts         BlogPost[]
+  comments      Comment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Business {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  category    String
+  address     String
+  city        String
+  state       String
+  phone       String
+  email       String
+  website     String?
+  socialMedia Json?
+  photos      String[]
+  status      Status    @default(PENDING)
+  featured    Boolean   @default(false)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  jobs        Job[]
+  reviews     Review[]
+  subscription Subscription?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Professional {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id])
+  occupation     String
+  specialties    String[]
+  experience     String
+  education      String[]
+  certifications String[]
+  portfolio      String[]
+  availability   String
+  hourlyRate     Decimal?
+  about          String
+  status         Status       @default(PENDING)
+  featured       Boolean      @default(false)
+  reviews        Review[]
+  subscription   Subscription?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Job {
+  id           String         @id @default(cuid())
+  title        String
+  description  String
+  requirements String[]
+  benefits     String[]
+  salary       String
+  type         String
+  location     String
+  status       Status         @default(PENDING)
+  featured     Boolean        @default(false)
+  businessId   String
+  business     Business       @relation(fields: [businessId], references: [id])
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  applications Application[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  expiresAt    DateTime
+}
+
+model Application {
+  id            String       @id @default(cuid())
+  jobId         String
+  job           Job          @relation(fields: [jobId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  status        Status       @default(PENDING)
+  resumeUrl     String
+  coverLetter   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model BlogPost {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  content     String
+  image       String?
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tags        String[]
+  authorId    String
+  categoryId  String
+  author      User      @relation(fields: [authorId], references: [id])
+  category    Category  @relation(fields: [categoryId], references: [id])
+  comments    Comment[]
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  postId    String
+  userId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Plan {
+  id          String         @id @default(cuid())
+  name        String
+  description String
+  price       Decimal
+  duration    Int            
+  type        PlanType       
+  features    String[]
+  active      Boolean        @default(true)
+  subscriptions Subscription[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Subscription {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  planId        String
+  plan          Plan         @relation(fields: [planId], references: [id])
+  businessId    String?      @unique
+  business      Business?    @relation(fields: [businessId], references: [id])
+  professionalId String?     @unique
+  professional  Professional? @relation(fields: [professionalId], references: [id])
+  status        SubStatus    
+  startDate     DateTime
+  endDate       DateTime
+  autoRenew     Boolean      @default(true)
+  payments      Payment[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Payment {
+  id              String       @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  amount          Decimal
+  status          PayStatus    
+  paymentMethod   String
+  paymentIntentId String?
+  invoice         Invoice?
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Invoice {
+  id        String   @id @default(cuid())
+  paymentId String   @unique
+  payment   Payment  @relation(fields: [paymentId], references: [id])
+  number    String   @unique
+  url       String?
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id             String        @id @default(cuid())
+  rating         Int
+  comment        String?
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  businessId     String?
+  business       Business?     @relation(fields: [businessId], references: [id])
+  professionalId String?
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  discountType  String    // PERCENTAGE ou FIXED
+  discountValue Decimal
+  active        Boolean   @default(true)
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  entityId  String?
+  read      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model CancellationReason {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  userId         String
+  reason         String
+  createdAt      DateTime     @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+  BUSINESS
+  PROFESSIONAL
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PlanType {
+  BUSINESS
+  PROFESSIONAL
+  JOB
+}
+
+enum SubStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum PayStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+} 
