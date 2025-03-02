@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import helmet from 'helmet';
@@ -51,11 +52,14 @@ const limiter = rateLimit({
       // Usar o IP real (considerando o trust proxy configurado acima)
       const realIp = req.ip || '0.0.0.0';
       
+      // Remover a porta do IP, se houver (problema comum em alguns proxies)
+      const cleanIp = realIp.replace(/:\d+[^:]*$/, '');
+      
       // Opcionalmente, combinar com outros identificadores como user-agent
       const userAgent = req.get('user-agent') || 'unknown';
       
       // Retornar uma combinação de identificadores
-      return `${realIp}-${userAgent.substring(0, 20)}`;
+      return `${cleanIp}-${userAgent.substring(0, 20)}`;
     }
     
     // Em desenvolvimento, usar apenas o IP
@@ -69,6 +73,10 @@ const limiter = rateLimit({
       message: options.message,
       retryAfter: Math.ceil(options.windowMs / 1000 / 60) // em minutos
     });
+  },
+  // Desabilitar a validação do trust proxy para evitar o erro
+  validate: {
+    trustProxy: false
   }
 });
 
