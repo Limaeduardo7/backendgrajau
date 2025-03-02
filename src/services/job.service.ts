@@ -3,6 +3,8 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
+import { withRetry } from '../utils/retryHandler';
+import logger from '../config/logger';
 
 interface ListJobsParams {
   page: number;
@@ -20,7 +22,7 @@ interface ApplicationData {
 }
 
 export class JobService {
-  async list(params: ListJobsParams): Promise<{ jobs: Job[]; total: number; pages: number }> {
+  async list(params: ListJobsParams): Promise<{ jobs: Job[]; total: number; pages: number; currentPage: number }> {
     const { page, limit, search, category, type, location, featured } = params;
     const skip = (page - 1) * limit;
 
@@ -48,57 +50,95 @@ export class JobService {
     }
 
     if (featured) {
-      where.featured = true;
+      where.featured = { equals: true } as any;
     }
 
-    const [jobs, total] = await Promise.all([
-      prisma.job.findMany({
-        where,
-        include: {
-          business: {
-            select: {
-              name: true,
-              city: true,
-              state: true,
-            },
-          },
+    try {
+      const [jobs, total] = await withRetry(
+        async () => {
+          return Promise.all([
+            prisma.job.findMany({
+              where,
+              include: {
+                business: {
+                  select: {
+                    name: true,
+                    city: true,
+                    state: true,
+                  },
+                },
+              },
+              skip,
+              take: limit,
+              orderBy: { createdAt: 'desc' },
+            }),
+            prisma.job.count({ where }),
+          ]);
         },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.job.count({ where }),
-    ]);
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao listar vagas (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    return {
-      jobs,
-      total,
-      pages: Math.ceil(total / limit),
-    };
+      return {
+        jobs,
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+      };
+    } catch (error: any) {
+      logger.error(`Falha ao listar vagas: ${error.message}`);
+      throw new ApiError(500, 'Erro ao listar vagas');
+    }
   }
 
   async getById(id: string): Promise<Job | null> {
-    const job = await prisma.job.findUnique({
-      where: { id },
-      include: {
-        business: {
-          select: {
-            name: true,
-            description: true,
-            city: true,
-            state: true,
-            phone: true,
-            email: true,
-          },
+    try {
+      const job = await withRetry(
+        async () => {
+          return prisma.job.findUnique({
+            where: { id },
+            include: {
+              business: {
+                select: {
+                  name: true,
+                  description: true,
+                  city: true,
+                  state: true,
+                  phone: true,
+                  email: true,
+                },
+              },
+            },
+          });
         },
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar vaga por ID ${id} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    if (!job) {
-      throw new ApiError(404, 'Vaga não encontrada');
+      if (!job) {
+        throw new ApiError(404, 'Vaga não encontrada');
+      }
+
+      return job;
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar vaga por ID ${id}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar vaga');
     }
-
-    return job;
   }
 
   async create(data: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>, businessId: string, userId: string): Promise<Job> {

@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { sanitizeData } from './middlewares/sanitizer.middleware';
 import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
+import apiPrefixMiddleware from './middlewares/apiPrefixMiddleware';
 
 const app = express();
 
@@ -58,13 +59,16 @@ app.use(sanitizeData);
 // Documentação Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 
-// Rotas
-app.use('/api', routes);
+// Middleware para adicionar o prefixo /api/ às rotas que não o possuem
+app.use(apiPrefixMiddleware);
 
 // Rota de status
 app.get('/status', (req, res) => {
   res.status(200).json({ status: 'online', timestamp: new Date().toISOString() });
 });
+
+// Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API
+app.use('/api', routes);
 
 // Middleware do Sentry para capturar erros (antes do errorHandler)
 if (process.env.NODE_ENV === 'production') {

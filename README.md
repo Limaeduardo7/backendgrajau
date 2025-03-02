@@ -1,6 +1,38 @@
-# Anunciar Grajaú - Backend
+# Backend Anunciar Grajaú
 
-Backend da plataforma Anunciar Grajaú, um portal para conectar empresas, profissionais e clientes na região do Grajaú.
+Este é o backend da aplicação Anunciar Grajaú, uma plataforma para conectar empresas, profissionais e oportunidades na região do Grajaú.
+
+## Melhorias Implementadas
+
+### 1. Middleware de Prefixo de API
+
+Foi implementado um middleware para garantir que todas as rotas tenham o prefixo `/api/`. Isso padroniza as chamadas de API e facilita a configuração de proxies e balanceadores de carga.
+
+O middleware está localizado em `src/middlewares/apiPrefixMiddleware.ts` e é aplicado no arquivo `src/app.ts`.
+
+### 2. Mecanismo de Retry
+
+Foi implementado um mecanismo de retry para operações que podem falhar temporariamente, como consultas ao banco de dados. Isso aumenta a resiliência da aplicação e reduz a ocorrência de erros 500 para o usuário final.
+
+O mecanismo está localizado em `src/utils/retryHandler.ts` e foi aplicado nos seguintes métodos do serviço de blog:
+
+- `list`: Listagem de posts
+- `getById`: Busca de post por ID
+- `getBySlug`: Busca de post por slug
+- `listCategories`: Listagem de categorias
+- `getCategoryById`: Busca de categoria por ID
+- `getCommentsByPostId`: Busca de comentários por post
+
+### 3. Instruções para o Frontend
+
+Foi criado um arquivo `FRONTEND_INSTRUCTIONS.md` com instruções detalhadas para o frontend implementar:
+
+- Verificação de prefixos nos endpoints
+- Mecanismo de retry para chamadas de API
+- Tratamento de erro robusto
+- Dados de fallback para quando a API estiver indisponível
+- Hook personalizado para fazer requisições com retry e fallback
+- Componente de Error Boundary para capturar erros em componentes filhos
 
 ## Tecnologias Utilizadas
 

@@ -3,6 +3,8 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
+import { withRetry } from '../utils/retryHandler';
+import logger from '../config/logger';
 
 interface ListParams {
   page?: number;
@@ -58,56 +60,93 @@ export class BusinessService {
 
     // Adicionar filtro por destaque
     if (featured) {
-      where.featured = true;
+      where.featured = { equals: true } as any;
     }
 
-    // Buscar total de registros
-    const total = await prisma.business.count({ where });
-
-    // Buscar empresas
-    const businesses = await prisma.business.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
+    try {
+      // Usar o mecanismo de retry para buscar o total de registros e as empresas
+      const [total, businesses] = await withRetry(
+        async () => {
+          return Promise.all([
+            prisma.business.count({ where }),
+            prisma.business.findMany({
+              where,
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+              skip,
+              take: limit,
+              orderBy: {
+                createdAt: 'desc',
+              },
+            }),
+          ]);
         },
-      },
-      skip,
-      take: limit,
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao listar empresas (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    return {
-      businesses,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: page,
-    };
+      return {
+        businesses,
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+      };
+    } catch (error: any) {
+      logger.error(`Falha ao listar empresas: ${error.message}`);
+      throw new ApiError(500, 'Erro ao listar empresas');
+    }
   }
 
   async getById(id: string): Promise<Business | null> {
-    const business = await prisma.business.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
+    try {
+      const business = await withRetry(
+        async () => {
+          return prisma.business.findUnique({
+            where: { id },
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          });
         },
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar empresa por ID ${id} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    if (!business) {
-      throw new ApiError(404, 'Negócio não encontrado');
+      if (!business) {
+        throw new ApiError(404, 'Empresa não encontrada');
+      }
+
+      return business;
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar empresa por ID ${id}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar empresa');
     }
-
-    return business;
   }
 
   async create(data: Omit<Business, 'id' | 'createdAt' | 'updatedAt'>, userId: string): Promise<Business> {

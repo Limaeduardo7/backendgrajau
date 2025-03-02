@@ -4,6 +4,8 @@ import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
 import slugify from 'slugify';
+import { withRetry } from '../utils/retryHandler';
+import logger from '../config/logger';
 
 interface ListPostsParams {
   page: number;
@@ -38,96 +40,154 @@ export class BlogService {
     }
 
     if (featured) {
-      where.featured = true;
+      where.featured = { equals: true } as any;
     }
 
-    const [posts, total] = await Promise.all([
-      prisma.blogPost.findMany({
-        where,
-        include: {
-          author: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
-          category: true,
+    try {
+      // Usar o mecanismo de retry para buscar os posts
+      const [posts, total] = await withRetry(
+        async () => {
+          return Promise.all([
+            prisma.blogPost.findMany({
+              where,
+              include: {
+                author: {
+                  select: {
+                    name: true,
+                    email: true,
+                  },
+                },
+                category: true,
+              },
+              skip,
+              take: limit,
+              orderBy: { publishedAt: 'desc' },
+            }),
+            prisma.blogPost.count({ where }),
+          ]);
         },
-        skip,
-        take: limit,
-        orderBy: { publishedAt: 'desc' },
-      }),
-      prisma.blogPost.count({ where }),
-    ]);
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar posts do blog (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    return {
-      posts,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: page,
-    };
+      return {
+        posts,
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+      };
+    } catch (error: any) {
+      logger.error(`Falha ao buscar posts do blog: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar posts do blog');
+    }
   }
 
   async getById(id: string) {
-    const post = await prisma.blogPost.findUnique({
-      where: { id },
-      include: {
-        author: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-        category: true,
-        comments: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true,
+    try {
+      const post = await withRetry(
+        async () => {
+          return prisma.blogPost.findUnique({
+            where: { id },
+            include: {
+              author: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+              category: true,
+              comments: {
+                include: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    },
+                  },
+                },
               },
             },
-          },
+          });
         },
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar post por ID ${id} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    if (!post) {
-      throw new ApiError(404, 'Post não encontrado');
+      if (!post) {
+        throw new ApiError(404, 'Post não encontrado');
+      }
+
+      return post;
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar post por ID ${id}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar post');
     }
-
-    return post;
   }
 
   async getBySlug(slug: string) {
-    const post = await prisma.blogPost.findUnique({
-      where: { slug },
-      include: {
-        author: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-        category: true,
-        comments: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true,
+    try {
+      const post = await withRetry(
+        async () => {
+          return prisma.blogPost.findUnique({
+            where: { slug },
+            include: {
+              author: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+              category: true,
+              comments: {
+                include: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    },
+                  },
+                },
               },
             },
-          },
+          });
         },
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar post por slug ${slug} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    if (!post) {
-      throw new ApiError(404, 'Post não encontrado');
+      if (!post) {
+        throw new ApiError(404, 'Post não encontrado');
+      }
+
+      return post;
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar post por slug ${slug}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar post');
     }
-
-    return post;
   }
 
   async create(data: any) {
@@ -268,31 +328,76 @@ export class BlogService {
   }
 
   async listCategories() {
-    return prisma.category.findMany({
-      orderBy: { name: 'asc' },
-    });
+    try {
+      return await withRetry(
+        async () => {
+          return prisma.category.findMany({
+            orderBy: { name: 'asc' },
+            include: {
+              _count: {
+                select: {
+                  posts: true,
+                },
+              },
+            },
+          });
+        },
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao listar categorias (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
+    } catch (error: any) {
+      logger.error(`Falha ao listar categorias: ${error.message}`);
+      throw new ApiError(500, 'Erro ao listar categorias');
+    }
   }
 
   async getCategoryById(id: string) {
-    const category = await prisma.category.findUnique({
-      where: { id },
-      include: {
-        posts: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-            publishedAt: true,
-          },
+    try {
+      const category = await withRetry(
+        async () => {
+          return prisma.category.findUnique({
+            where: { id },
+            include: {
+              posts: {
+                where: { published: true },
+                select: {
+                  id: true,
+                  title: true,
+                  slug: true,
+                  publishedAt: true,
+                },
+              },
+            },
+          });
         },
-      },
-    });
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar categoria por ID ${id} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
 
-    if (!category) {
-      throw new ApiError(404, 'Categoria não encontrada');
+      if (!category) {
+        throw new ApiError(404, 'Categoria não encontrada');
+      }
+
+      return category;
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar categoria por ID ${id}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar categoria');
     }
-
-    return category;
   }
 
   async createCategory(data: any) {
@@ -364,27 +469,59 @@ export class BlogService {
   }
 
   async getCommentsByPostId(postId: string) {
-    const post = await prisma.blogPost.findUnique({
-      where: { id: postId },
-    });
-
-    if (!post) {
-      throw new ApiError(404, 'Post não encontrado');
-    }
-
-    return prisma.comment.findMany({
-      where: { postId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+    try {
+      // Verificar se o post existe
+      const post = await withRetry(
+        async () => {
+          return prisma.blogPost.findUnique({
+            where: { id: postId },
+            select: { id: true },
+          });
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        {
+          maxRetries: 2,
+          initialDelay: 300,
+          backoffFactor: 2,
+        }
+      );
+
+      if (!post) {
+        throw new ApiError(404, 'Post não encontrado');
+      }
+
+      // Buscar os comentários do post
+      return await withRetry(
+        async () => {
+          return prisma.comment.findMany({
+            where: { postId },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+        },
+        {
+          maxRetries: 3,
+          initialDelay: 500,
+          backoffFactor: 2,
+          onRetry: (error, attempt) => {
+            logger.warn(`Erro ao buscar comentários do post ${postId} (tentativa ${attempt}): ${error.message}`);
+          },
+        }
+      );
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`Falha ao buscar comentários do post ${postId}: ${error.message}`);
+      throw new ApiError(500, 'Erro ao buscar comentários');
+    }
   }
 
   async removeComment(id: string, userId: string) {
