@@ -18,7 +18,7 @@ export class BlogService {
   async list({ page = 1, limit = 10, search, category, tag, featured }: ListPostsParams) {
     const skip = (page - 1) * limit;
 
-    const where: Prisma.BlogPostWhereInput = {
+    const where: any = {
       published: true,
     };
 
