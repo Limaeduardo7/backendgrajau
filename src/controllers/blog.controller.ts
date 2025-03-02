@@ -20,19 +20,21 @@ export class BlogController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const { page = 1, limit = 10, search, category, tag } = req.query;
+      const { page = 1, limit = 10, search, category, tag, featured } = req.query;
       const posts = await this.blogService.list({
         page: Number(page),
         limit: Number(limit),
         search: search as string,
         category: category as string,
         tag: tag as string,
+        featured: featured === 'true',
       });
       res.json(posts);
     } catch (error) {
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
+        console.error('Erro ao listar posts:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }

@@ -11,10 +11,11 @@ interface ListPostsParams {
   search?: string;
   category?: string;
   tag?: string;
+  featured?: boolean;
 }
 
 export class BlogService {
-  async list({ page = 1, limit = 10, search, category, tag }: ListPostsParams) {
+  async list({ page = 1, limit = 10, search, category, tag, featured }: ListPostsParams) {
     const skip = (page - 1) * limit;
 
     const where: Prisma.BlogPostWhereInput = {
@@ -34,6 +35,10 @@ export class BlogService {
 
     if (tag) {
       where.tags = { has: tag };
+    }
+
+    if (featured) {
+      where.featured = true;
     }
 
     const [posts, total] = await Promise.all([
