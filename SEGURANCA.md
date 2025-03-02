@@ -26,15 +26,30 @@ Foi implementada uma configuração mais segura para o `express-rate-limit`, que
 1. **Usa um gerador de chaves personalizado**:
    - Em produção: Combina o IP real do cliente com parte do User-Agent para criar uma chave única
    - Em desenvolvimento: Usa apenas o IP do cliente
+   - Remove a porta do IP, se houver (problema comum em alguns proxies)
 
 2. **Adiciona um handler personalizado** para quando o limite é atingido, que:
    - Registra um aviso no log
    - Retorna uma resposta JSON com status 429
    - Informa ao cliente quanto tempo esperar antes de tentar novamente
 
+3. **Desabilita a validação do trust proxy**:
+   - Configuração `validate: { trustProxy: false }` para evitar o erro `ERR_ERL_PERMISSIVE_TRUST_PROXY`
+   - Isso é necessário porque o express-rate-limit 6.x+ faz uma verificação rigorosa da configuração do trust proxy
+
 ### Por que isso é importante?
 
 A configuração padrão do `express-rate-limit` pode ser contornada se o `trust proxy` estiver configurado incorretamente. Ao usar um gerador de chaves personalizado, aumentamos a segurança mesmo se o IP for falsificado, pois também consideramos o User-Agent.
+
+### Correção do erro ERR_ERL_PERMISSIVE_TRUST_PROXY
+
+O erro `ERR_ERL_PERMISSIVE_TRUST_PROXY` ocorre quando o `express-rate-limit` detecta que a configuração do `trust proxy` está muito permissiva (como `true`), o que pode permitir que atacantes contornem a limitação de taxa.
+
+Para corrigir esse erro, implementamos:
+
+1. Uma configuração mais específica do `trust proxy` (1 em vez de true)
+2. Um gerador de chaves personalizado que não depende apenas do IP
+3. A desativação da validação do trust proxy no rate limiter com `validate: { trustProxy: false }`
 
 ## Como testar
 
