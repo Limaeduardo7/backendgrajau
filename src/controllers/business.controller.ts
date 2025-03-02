@@ -11,12 +11,24 @@ export class BusinessController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const businesses = await this.businessService.list();
+      const { page = 1, limit = 10, search, category, state, city, featured } = req.query;
+      
+      const businesses = await this.businessService.list({
+        page: Number(page),
+        limit: Number(limit),
+        search: search as string,
+        category: category as string,
+        state: state as string,
+        city: city as string,
+        featured: featured === 'true',
+      });
+      
       res.json(businesses);
     } catch (error) {
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
+        console.error('Erro ao listar empresas:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }

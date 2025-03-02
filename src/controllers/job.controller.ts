@@ -11,7 +11,7 @@ export class JobController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const { page = 1, limit = 10, search, category, type, location } = req.query;
+      const { page = 1, limit = 10, search, category, type, location, featured } = req.query;
       const jobs = await this.jobService.list({
         page: Number(page),
         limit: Number(limit),
@@ -19,12 +19,14 @@ export class JobController {
         category: category as string,
         type: type as string,
         location: location as string,
+        featured: featured === 'true',
       });
       res.json(jobs);
     } catch (error) {
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
+        console.error('Erro ao listar vagas:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }

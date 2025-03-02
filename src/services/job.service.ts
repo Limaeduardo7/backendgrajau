@@ -11,6 +11,7 @@ interface ListJobsParams {
   category?: string;
   type?: string;
   location?: string;
+  featured?: boolean;
 }
 
 interface ApplicationData {
@@ -20,7 +21,7 @@ interface ApplicationData {
 
 export class JobService {
   async list(params: ListJobsParams): Promise<{ jobs: Job[]; total: number; pages: number }> {
-    const { page, limit, search, category, type, location } = params;
+    const { page, limit, search, category, type, location, featured } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -44,6 +45,10 @@ export class JobService {
     
     if (location) {
       where.location = { contains: location, mode: 'insensitive' as any };
+    }
+
+    if (featured) {
+      where.featured = true;
     }
 
     const [jobs, total] = await Promise.all([

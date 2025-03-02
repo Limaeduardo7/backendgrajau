@@ -4,10 +4,69 @@ import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
 
+interface ListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  state?: string;
+  city?: string;
+  featured?: boolean;
+}
+
 export class BusinessService {
-  async list(): Promise<Business[]> {
-    return prisma.business.findMany({
-      where: { status: 'APPROVED' },
+  async list(params?: ListParams) {
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      category,
+      state,
+      city,
+      featured,
+    } = params || {};
+
+    const skip = (page - 1) * limit;
+
+    // Construir a condição where
+    const where: any = {
+      status: 'APPROVED',
+    };
+
+    // Adicionar filtro de busca por termo
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Adicionar filtro por categoria
+    if (category) {
+      where.categoryId = category;
+    }
+
+    // Adicionar filtro por estado
+    if (state) {
+      where.state = state;
+    }
+
+    // Adicionar filtro por cidade
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' };
+    }
+
+    // Adicionar filtro por destaque
+    if (featured) {
+      where.featured = true;
+    }
+
+    // Buscar total de registros
+    const total = await prisma.business.count({ where });
+
+    // Buscar empresas
+    const businesses = await prisma.business.findMany({
+      where,
       include: {
         user: {
           select: {
@@ -16,7 +75,19 @@ export class BusinessService {
           },
         },
       },
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
+
+    return {
+      businesses,
+      total,
+      pages: Math.ceil(total / limit),
+      currentPage: page,
+    };
   }
 
   async getById(id: string): Promise<Business | null> {
