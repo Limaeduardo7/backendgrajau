@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { BusinessController } from '../controllers/business.controller';
 import { requireAuth, validateUser, requireRole } from '../middlewares/auth.middleware';
 import uploadMiddleware from '../middlewares/uploadMiddleware';
@@ -6,6 +6,17 @@ import { validateCreateBusiness, validateUpdateBusiness, validateUpdateStatus } 
 
 const router = Router();
 const businessController = new BusinessController();
+
+// Middleware para tratar erros nas rotas públicas
+const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promise<any>) => 
+  async (req: Request, res: Response) => {
+    try {
+      await handler(req, res);
+    } catch (error: any) {
+      console.error('Erro na rota pública:', error);
+      res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+    }
+  };
 
 /**
  * @swagger
@@ -117,8 +128,8 @@ const businessController = new BusinessController();
  *                 currentPage:
  *                   type: integer
  */
-router.get('/', businessController.list);
-router.get('/search', businessController.list);
+router.get('/', handlePublicRouteErrors(businessController.list));
+router.get('/search', handlePublicRouteErrors(businessController.list));
 
 /**
  * @swagger

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { BlogController } from '../controllers/blog.controller';
 import { requireAuth, validateUser, requireRole } from '../middlewares/auth.middleware';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
@@ -6,12 +6,26 @@ import { uploadMiddleware } from '../middlewares/upload.middleware';
 const router = Router();
 const blogController = new BlogController();
 
+// Middleware para tratar erros nas rotas públicas
+const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promise<any>) => 
+  async (req: Request, res: Response) => {
+    try {
+      await handler(req, res);
+    } catch (error: any) {
+      console.error('Erro na rota pública:', error);
+      res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+    }
+  };
+
 // Rotas públicas
-router.get('/', blogController.list);
-router.get('/posts/featured', blogController.list);
-router.get('/:id', blogController.getById);
-router.get('/slug/:slug', blogController.getBySlug);
-router.get('/categories', blogController.listCategories);
+router.get('/', handlePublicRouteErrors(blogController.list));
+router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
+  req.query.featured = 'true';
+  return blogController.list(req, res);
+}));
+router.get('/:id', handlePublicRouteErrors(blogController.getById));
+router.get('/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
+router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
 
 // Rotas protegidas
 router.use(requireAuth);
