@@ -118,6 +118,7 @@ const businessController = new BusinessController();
  *                   type: integer
  */
 router.get('/', businessController.list);
+router.get('/search', businessController.list);
 
 /**
  * @swagger

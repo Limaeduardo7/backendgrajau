@@ -8,6 +8,7 @@ const blogController = new BlogController();
 
 // Rotas públicas
 router.get('/', blogController.list);
+router.get('/posts/featured', blogController.list);
 router.get('/:id', blogController.getById);
 router.get('/slug/:slug', blogController.getBySlug);
 router.get('/categories', blogController.listCategories);

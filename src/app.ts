@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import helmet from 'helmet';
@@ -12,6 +11,9 @@ import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
 
 const app = express();
+
+// Configurar trust proxy para funcionar corretamente com Nginx
+app.set('trust proxy', true);
 
 // Inicializar Sentry em produção
 if (process.env.NODE_ENV === 'production') {
@@ -36,7 +38,6 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Middlewares
-app.use(cors());
 app.use(express.json());
 
 // Configurar Morgan para usar o logger Winston

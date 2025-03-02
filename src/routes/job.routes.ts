@@ -8,6 +8,7 @@ const jobController = new JobController();
 
 // Rotas públicas
 router.get('/', jobController.list);
+router.get('/search', jobController.list);
 router.get('/:id', jobController.getById);
 
 // Rotas protegidas
