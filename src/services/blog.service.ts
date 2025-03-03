@@ -329,30 +329,13 @@ export class BlogService {
 
   async listCategories() {
     try {
-      return await withRetry(
-        async () => {
-          return prisma.category.findMany({
-            orderBy: { name: 'asc' },
-            include: {
-              _count: {
-                select: {
-                  posts: true,
-                },
-              },
-            },
-          });
+      return await prisma.category.findMany({
+        orderBy: {
+          name: 'asc',
         },
-        {
-          maxRetries: 3,
-          initialDelay: 500,
-          backoffFactor: 2,
-          onRetry: (error, attempt) => {
-            logger.warn(`Erro ao listar categorias (tentativa ${attempt}): ${error.message}`);
-          },
-        }
-      );
-    } catch (error: any) {
-      logger.error(`Falha ao listar categorias: ${error.message}`);
+      });
+    } catch (error) {
+      logger.error('Erro ao listar categorias:', error);
       throw new ApiError(500, 'Erro ao listar categorias');
     }
   }
@@ -542,5 +525,25 @@ export class BlogService {
     }
 
     await prisma.comment.delete({ where: { id } });
+  }
+
+  async listTags() {
+    try {
+      // Buscar todos os posts e extrair as tags
+      const posts = await prisma.blogPost.findMany({
+        select: {
+          tags: true,
+        },
+      });
+      
+      // Extrair todas as tags e remover duplicatas
+      const allTags = posts.flatMap(post => post.tags);
+      const uniqueTags = [...new Set(allTags)].sort();
+      
+      return uniqueTags.map(tag => ({ name: tag }));
+    } catch (error) {
+      logger.error('Erro ao listar tags:', error);
+      throw new ApiError(500, 'Erro ao listar tags');
+    }
   }
 } 

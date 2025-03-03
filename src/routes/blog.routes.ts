@@ -27,6 +27,7 @@ router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
 router.get('/:id', handlePublicRouteErrors(blogController.getById));
 router.get('/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
 router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
+router.get('/tags', handlePublicRouteErrors(blogController.listTags));
 
 // Rotas protegidas
 router.use(requireAuth);

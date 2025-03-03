@@ -188,6 +188,21 @@ export class BlogController {
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
+        console.error('Erro ao listar categorias:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  listTags = async (req: Request, res: Response) => {
+    try {
+      const tags = await this.blogService.listTags();
+      res.json(tags);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        console.error('Erro ao listar tags:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }

@@ -30,6 +30,24 @@ router.get('/stats', requireAuth, isAdmin, logAdminAction, adminController.getSt
 
 /**
  * @swagger
+ * /admin/dashboard/stats:
+ *   get:
+ *     summary: Obtém estatísticas detalhadas do dashboard administrativo
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estatísticas obtidas com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso negado - usuário não é administrador
+ */
+router.get('/dashboard/stats', requireAuth, isAdmin, logAdminAction, adminController.getStats);
+
+/**
+ * @swagger
  * /admin/users:
  *   get:
  *     summary: Lista todos os usuários
