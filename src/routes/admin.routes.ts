@@ -48,6 +48,34 @@ router.get('/dashboard/stats', requireAuth, isAdmin, logAdminAction, adminContro
 
 /**
  * @swagger
+ * /api/admin/dashboard/revenue:
+ *   get:
+ *     summary: Obtém estatísticas de receita para o dashboard
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month, year, all]
+ *           default: month
+ *         description: Período para obter as estatísticas de receita
+ *     responses:
+ *       200:
+ *         description: Estatísticas de receita obtidas com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido, permissão de administrador necessária
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/dashboard/revenue', requireAuth, isAdmin, logAdminAction, adminController.getRevenueStats);
+
+/**
+ * @swagger
  * /admin/users:
  *   get:
  *     summary: Lista todos os usuários
@@ -441,5 +469,86 @@ router.post(
   auditAdminAction('SET_AUTO_APPROVAL', 'SETTINGS'),
   adminController.setAutoApproval
 );
+
+/**
+ * @swagger
+ * /api/admin/dashboard/jobs:
+ *   get:
+ *     summary: Obtém estatísticas de vagas para o dashboard
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Número de dias para filtrar as vagas recentes
+ *     responses:
+ *       200:
+ *         description: Estatísticas de vagas obtidas com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido, permissão de administrador necessária
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/dashboard/jobs', requireAuth, isAdmin, logAdminAction, adminController.getJobsStats);
+
+/**
+ * @swagger
+ * /api/admin/dashboard/applications:
+ *   get:
+ *     summary: Obtém estatísticas de candidaturas para o dashboard
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Número de dias para filtrar as candidaturas recentes
+ *     responses:
+ *       200:
+ *         description: Estatísticas de candidaturas obtidas com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido, permissão de administrador necessária
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/dashboard/applications', requireAuth, isAdmin, logAdminAction, adminController.getApplicationsStats);
+
+/**
+ * @swagger
+ * /api/admin/dashboard:
+ *   get:
+ *     summary: Obtém todos os dados do dashboard administrativo
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Número de dias para filtrar dados recentes
+ *     responses:
+ *       200:
+ *         description: Dados do dashboard obtidos com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido, permissão de administrador necessária
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/dashboard', requireAuth, isAdmin, logAdminAction, adminController.getDashboard);
 
 export default router; 
