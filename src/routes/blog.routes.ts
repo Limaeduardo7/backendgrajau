@@ -19,6 +19,7 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
 
 // Rotas públicas
 router.get('/', handlePublicRouteErrors(blogController.list));
+router.get('/posts', handlePublicRouteErrors(blogController.list));
 router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
   req.query.featured = 'true';
   return blogController.list(req, res);
