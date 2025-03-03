@@ -33,6 +33,9 @@ router.use('/auth', authRoutes);
 // Alias para a rota de registro (para compatibilidade)
 router.post('/register', authController.register);
 
+// Alias para a rota de login (para compatibilidade)
+router.post('/login', authController.login);
+
 // Registrando as rotas de negócios
 router.use('/businesses', businessRoutes);
 

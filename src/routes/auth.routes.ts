@@ -7,6 +7,9 @@ const authController = new AuthController();
 // Rota de registro
 router.post('/register', authController.register);
 
+// Rota de login
+router.post('/login', authController.login);
+
 // Rota para verificar status de autenticação
 router.get('/status', authController.status);
 

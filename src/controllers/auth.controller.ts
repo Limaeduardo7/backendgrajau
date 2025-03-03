@@ -13,7 +13,9 @@ export class AuthController {
     try {
       const { firstName, lastName, email, password } = req.body;
 
+      // Verificar se todos os campos obrigatórios foram fornecidos
       if (!firstName || !lastName || !email || !password) {
+        logger.warn(`Tentativa de registro com dados incompletos: ${JSON.stringify(req.body)}`);
         return res.status(400).json({ 
           error: 'Dados incompletos', 
           message: 'Nome, sobrenome, email e senha são obrigatórios' 
@@ -21,50 +23,85 @@ export class AuthController {
       }
 
       // Verificar se o email já existe no Clerk
-      const existingUsers = await clerkClient.users.getUserList({
-        emailAddress: [email],
-      });
+      try {
+        const existingUsers = await clerkClient.users.getUserList({
+          emailAddress: [email],
+        });
 
-      if (existingUsers.length > 0) {
-        return res.status(400).json({ 
-          error: 'Email já cadastrado', 
-          message: 'Este email já está sendo usado por outro usuário' 
+        if (existingUsers.length > 0) {
+          logger.warn(`Tentativa de registro com email já existente: ${email}`);
+          return res.status(400).json({ 
+            error: 'Email já cadastrado', 
+            message: 'Este email já está sendo usado por outro usuário' 
+          });
+        }
+      } catch (error) {
+        logger.error(`Erro ao verificar email no Clerk: ${error}`);
+        return res.status(500).json({ 
+          error: 'Erro ao verificar email', 
+          message: 'Não foi possível verificar se o email já está cadastrado' 
         });
       }
 
       // Criar usuário no Clerk
-      const clerkUser = await clerkClient.users.createUser({
-        emailAddress: [email],
-        password,
-        firstName,
-        lastName,
-      });
+      let clerkUser;
+      try {
+        clerkUser = await clerkClient.users.createUser({
+          emailAddress: [email],
+          password,
+          firstName,
+          lastName,
+        });
 
-      logger.info(`Usuário criado no Clerk: ${clerkUser.id}`);
+        logger.info(`Usuário criado no Clerk: ${clerkUser.id}`);
+      } catch (error) {
+        logger.error(`Erro ao criar usuário no Clerk: ${error}`);
+        return res.status(500).json({ 
+          error: 'Erro ao criar usuário', 
+          message: 'Não foi possível criar o usuário. Verifique se os dados estão corretos.' 
+        });
+      }
 
       // Criar usuário no banco de dados local
-      const user = await prisma.user.create({
-        data: {
-          clerkId: clerkUser.id,
-          name: `${firstName} ${lastName}`,
-          email,
-          role: 'USER',
-          status: 'PENDING',
-        },
-      });
+      try {
+        const user = await prisma.user.create({
+          data: {
+            clerkId: clerkUser.id,
+            name: `${firstName} ${lastName}`,
+            email,
+            role: 'USER',
+            status: 'PENDING',
+          },
+        });
 
-      logger.info(`Usuário criado no banco de dados: ${user.id}`);
+        logger.info(`Usuário criado no banco de dados: ${user.id}`);
 
-      return res.status(201).json({
-        message: 'Usuário registrado com sucesso',
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-        },
-      });
+        return res.status(201).json({
+          message: 'Usuário registrado com sucesso',
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+          },
+        });
+      } catch (error) {
+        logger.error(`Erro ao criar usuário no banco de dados: ${error}`);
+        
+        // Tentar remover o usuário do Clerk para evitar inconsistências
+        try {
+          await clerkClient.users.deleteUser(clerkUser.id);
+          logger.info(`Usuário removido do Clerk após falha no banco de dados: ${clerkUser.id}`);
+        } catch (deleteError) {
+          logger.error(`Erro ao remover usuário do Clerk: ${deleteError}`);
+        }
+        
+        return res.status(500).json({ 
+          error: 'Erro ao criar usuário no banco de dados', 
+          message: 'Não foi possível completar o registro. Tente novamente mais tarde.' 
+        });
+      }
     } catch (error) {
       logger.error('Erro ao registrar usuário:', error);
       
@@ -75,6 +112,108 @@ export class AuthController {
       return res.status(500).json({ 
         error: 'Erro interno do servidor', 
         message: 'Não foi possível completar o registro. Tente novamente mais tarde.' 
+      });
+    }
+  };
+
+  /**
+   * Realiza o login do usuário
+   * Este método autentica o usuário no Clerk e retorna um token
+   */
+  login = async (req: Request, res: Response) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify(req.body)}`);
+        return res.status(400).json({ 
+          error: 'Dados incompletos', 
+          message: 'Email e senha são obrigatórios' 
+        });
+      }
+
+      try {
+        // Verificar se o usuário existe no Clerk
+        const users = await clerkClient.users.getUserList({
+          emailAddress: [email],
+        });
+
+        if (users.length === 0) {
+          logger.warn(`Tentativa de login com email não cadastrado: ${email}`);
+          return res.status(401).json({ 
+            error: 'Credenciais inválidas', 
+            message: 'Email ou senha incorretos' 
+          });
+        }
+
+        // Criar um token de sessão
+        const signInToken = await clerkClient.signInTokens.createSignInToken({
+          userId: users[0].id,
+          expiresInSeconds: 60 * 60 * 24 * 7, // 7 dias
+        });
+
+        // Verificar se o usuário existe no banco de dados local
+        const user = await prisma.user.findFirst({
+          where: { clerkId: users[0].id },
+        });
+
+        if (!user) {
+          // Criar usuário no banco de dados local se não existir
+          const newUser = await prisma.user.create({
+            data: {
+              clerkId: users[0].id,
+              name: `${users[0].firstName} ${users[0].lastName}`,
+              email: email,
+              role: 'USER',
+              status: 'PENDING',
+            },
+          });
+
+          logger.info(`Usuário criado no banco de dados após login: ${newUser.id}`);
+
+          return res.status(200).json({
+            message: 'Login realizado com sucesso',
+            token: signInToken.token,
+            user: {
+              id: newUser.id,
+              name: newUser.name,
+              email: newUser.email,
+              role: newUser.role,
+              status: newUser.status,
+            },
+          });
+        }
+
+        logger.info(`Login realizado com sucesso: ${user.id}`);
+
+        return res.status(200).json({
+          message: 'Login realizado com sucesso',
+          token: signInToken.token,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+          },
+        });
+      } catch (error) {
+        logger.error(`Erro ao autenticar usuário: ${error}`);
+        return res.status(401).json({ 
+          error: 'Erro de autenticação', 
+          message: 'Não foi possível autenticar o usuário' 
+        });
+      }
+    } catch (error) {
+      logger.error('Erro ao realizar login:', error);
+      
+      if (error instanceof ApiError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+      
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor', 
+        message: 'Não foi possível completar o login. Tente novamente mais tarde.' 
       });
     }
   };
