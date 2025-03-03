@@ -24,10 +24,10 @@ router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
   req.query.featured = 'true';
   return blogController.list(req, res);
 }));
-router.get('/:id', handlePublicRouteErrors(blogController.getById));
-router.get('/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
 router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
 router.get('/tags', handlePublicRouteErrors(blogController.listTags));
+router.get('/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
+router.get('/:id', handlePublicRouteErrors(blogController.getById));
 
 // Rotas protegidas
 router.use(requireAuth);
