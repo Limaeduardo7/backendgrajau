@@ -27,7 +27,9 @@
     "deploy:logs": "pm2 logs anunciar-grajau-api",
     "deploy:status": "pm2 status anunciar-grajau-api",
     "create-admin": "ts-node src/scripts/createAdminUser.ts",
-    "create-admin-with-clerk": "ts-node src/scripts/createAdminWithClerk.ts"
+    "create-admin-with-clerk": "ts-node src/scripts/createAdminWithClerk.ts",
+    "setup-notifications": "ts-node src/scripts/setupNotifications.ts",
+    "ensure-admin": "ts-node src/scripts/ensureAdminUser.ts"
   },
   "keywords": [],
   "author": "",

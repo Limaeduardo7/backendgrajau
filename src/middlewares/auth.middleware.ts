@@ -33,23 +33,34 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       if (decodedToken.includes(':')) {
         const [userId] = decodedToken.split(':');
         
+        logger.info(`Tentando autenticar com token simples para usuário ID: ${userId}`);
+        
         // Buscar usuário no banco de dados local
         const user = await prisma.user.findUnique({
           where: { id: userId },
         });
 
-        if (user && user.email === 'anunciargrajau@gmail.com') {
-          logger.info(`Autenticação especial para o usuário administrador: ${user.id}`);
-          req.user = {
-            id: user.id,
-            clerkId: user.clerkId,
-            role: user.role,
-            email: user.email
-          };
-          return next();
+        if (user) {
+          logger.info(`Usuário encontrado: ${user.id}, email: ${user.email}, role: ${user.role}`);
+          
+          if (user.email === 'anunciargrajau@gmail.com' && user.role === 'ADMIN') {
+            logger.info(`Autenticação bem-sucedida para o administrador: ${user.id}`);
+            req.user = {
+              id: user.id,
+              clerkId: user.clerkId,
+              role: user.role,
+              email: user.email
+            };
+            return next();
+          } else {
+            logger.warn(`Usuário encontrado mas não é admin: ${user.id}, role: ${user.role}`);
+          }
+        } else {
+          logger.warn(`Usuário não encontrado para ID: ${userId}`);
         }
       }
     } catch (error) {
+      logger.error(`Erro ao verificar token simples: ${error}`);
       // Ignorar erro e continuar com a verificação normal do Clerk
     }
 
@@ -126,22 +137,34 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
       if (decodedToken.includes(':')) {
         const [userId] = decodedToken.split(':');
         
+        logger.info(`Tentando autenticar com token simples para usuário ID: ${userId}`);
+        
         // Buscar usuário no banco de dados local
         const user = await prisma.user.findUnique({
           where: { id: userId },
         });
 
-        if (user && user.email === 'anunciargrajau@gmail.com') {
-          req.user = {
-            id: user.id,
-            clerkId: user.clerkId,
-            role: user.role,
-            email: user.email
-          };
-          return next();
+        if (user) {
+          logger.info(`Usuário encontrado: ${user.id}, email: ${user.email}, role: ${user.role}`);
+          
+          if (user.email === 'anunciargrajau@gmail.com' && user.role === 'ADMIN') {
+            logger.info(`Autenticação bem-sucedida para o administrador: ${user.id}`);
+            req.user = {
+              id: user.id,
+              clerkId: user.clerkId,
+              role: user.role,
+              email: user.email
+            };
+            return next();
+          } else {
+            logger.warn(`Usuário encontrado mas não é admin: ${user.id}, role: ${user.role}`);
+          }
+        } else {
+          logger.warn(`Usuário não encontrado para ID: ${userId}`);
         }
       }
     } catch (error) {
+      logger.error(`Erro ao verificar token simples: ${error}`);
       // Ignorar erro e continuar com a verificação normal do Clerk
     }
 

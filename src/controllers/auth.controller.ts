@@ -152,8 +152,25 @@ export class AuthController {
 
       logger.info(`Tentativa de login para o email: ${email || 'não fornecido'}`);
 
+      // Verificar se todos os campos obrigatórios foram fornecidos
+      if (!email || !password) {
+        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify({
+          email: email ? 'fornecido' : 'não fornecido',
+          password: password ? 'fornecido' : 'não fornecido'
+        })}`);
+        
+        return res.status(400).json({ 
+          error: 'Dados incompletos', 
+          message: 'Email e senha são obrigatórios',
+          missingFields: {
+            email: !email,
+            password: !password
+          }
+        });
+      }
+
       // Caso especial para o usuário administrador
-      if (email === 'anunciargrajau@gmail.com') {
+      if (email === 'anunciargrajau@gmail.com' && password === '172002Ws$#@') {
         logger.info(`Login especial para o usuário administrador: ${email}`);
         
         // Verificar se o usuário existe no banco de dados local
@@ -167,7 +184,7 @@ export class AuthController {
             user = await prisma.user.create({
               data: {
                 clerkId: 'admin_user', // ID temporário
-                name: 'Admin Grajau',
+                name: 'Administrador Grajau',
                 email,
                 role: 'ADMIN',
                 status: 'APPROVED',
@@ -181,6 +198,13 @@ export class AuthController {
               message: 'Não foi possível completar o login. Tente novamente mais tarde.' 
             });
           }
+        } else if (user.role !== 'ADMIN') {
+          // Garantir que o usuário seja admin
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { role: 'ADMIN', status: 'APPROVED' }
+          });
+          logger.info(`Usuário atualizado para ADMIN: ${user.id}`);
         }
 
         // Criar um token simples (sem Clerk)
@@ -196,23 +220,6 @@ export class AuthController {
             role: user.role,
             status: user.status,
           },
-        });
-      }
-
-      // Verificar se todos os campos obrigatórios foram fornecidos
-      if (!email || !password) {
-        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify({
-          email: email ? 'fornecido' : 'não fornecido',
-          password: password ? 'fornecido' : 'não fornecido'
-        })}`);
-        
-        return res.status(400).json({ 
-          error: 'Dados incompletos', 
-          message: 'Email e senha são obrigatórios',
-          missingFields: {
-            email: !email,
-            password: !password
-          }
         });
       }
 
