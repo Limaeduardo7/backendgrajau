@@ -39,6 +39,7 @@ describe('ReviewController', () => {
         id: 'user-id',
         clerkId: 'clerk-id',
         role: 'USER',
+        email: 'user@example.com',
       },
     };
     
@@ -173,6 +174,7 @@ describe('ReviewController', () => {
         id: 'admin-id',
         clerkId: 'clerk-id',
         role: 'ADMIN',
+        email: 'admin@example.com',
       };
       
       const mockReview = { 
@@ -224,6 +226,7 @@ describe('ReviewController', () => {
         id: 'other-user-id',
         clerkId: 'clerk-id',
         role: 'USER',
+        email: 'other-user@example.com',
       };
       
       const mockReview = { 

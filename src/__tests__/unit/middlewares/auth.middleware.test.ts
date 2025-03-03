@@ -41,6 +41,7 @@ describe('Middlewares de Autenticação', () => {
         id: 'db_user_id',
         clerkId: 'test_user_id',
         role: 'USER',
+        email: 'test@example.com',
       },
     };
     mockResponse = {
