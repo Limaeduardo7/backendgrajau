@@ -877,12 +877,12 @@ class AdminController {
       // Usuários por mês (para gráfico de crescimento)
       const usersByMonth = await prisma.$queryRaw`
         SELECT 
-          DATE_TRUNC('month', created_at) as month,
+          DATE_TRUNC('month', "createdAt") as month,
           COUNT(*) as count
         FROM 
           "User"
         GROUP BY 
-          DATE_TRUNC('month', created_at)
+          DATE_TRUNC('month', "createdAt")
         ORDER BY 
           month ASC
       `;

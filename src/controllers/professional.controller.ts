@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ProfessionalService } from '../services/professional.service';
 import { ApiError } from '../utils/ApiError';
+import logger from '../config/logger';
 
 export class ProfessionalController {
   private professionalService: ProfessionalService;
@@ -169,14 +170,15 @@ export class ProfessionalController {
   listApplications = async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
-
       if (!userId) {
         throw new ApiError(401, 'Usuário não autenticado');
       }
-
-      const applications = await this.professionalService.listApplications(userId);
+      
+      const applications = await this.professionalService.listApplications(userId) || [];
+      logger.info(`Retornando ${applications.length} candidaturas para o profissional ${userId}`);
       res.json(applications);
     } catch (error) {
+      logger.error('Erro ao listar candidaturas:', error);
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {

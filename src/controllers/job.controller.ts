@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { JobService } from '../services/job.service';
 import { ApiError } from '../utils/ApiError';
+import logger from '../config/logger';
 
 export class JobController {
   private jobService: JobService;
@@ -12,7 +13,7 @@ export class JobController {
   list = async (req: Request, res: Response) => {
     try {
       const { page = 1, limit = 10, search, category, type, location, featured } = req.query;
-      const jobs = await this.jobService.list({
+      const result = await this.jobService.list({
         page: Number(page),
         limit: Number(limit),
         search: search as string,
@@ -21,12 +22,21 @@ export class JobController {
         location: location as string,
         featured: featured === 'true',
       });
-      res.json(jobs);
+      
+      logger.info(`Listando ${result.jobs?.length || 0} vagas`);
+      
+      // Garantir que o resultado tenha a propriedade "list" que o frontend espera
+      res.json({
+        list: result.jobs || [],
+        total: result.total || 0,
+        pages: result.pages || 1,
+        currentPage: result.currentPage || 1
+      });
     } catch (error) {
+      logger.error('Erro ao listar vagas:', error);
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
-        console.error('Erro ao listar vagas:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
       }
     }
@@ -168,7 +178,8 @@ export class JobController {
         throw new ApiError(401, 'Usuário não autenticado');
       }
 
-      const applications = await this.jobService.listApplications(id, userId);
+      const applications = await this.jobService.listApplications(id, userId) || [];
+      logger.info(`Retornando ${applications.length} candidaturas para a vaga ${id}`);
       res.json(applications);
     } catch (error) {
       if (error instanceof ApiError) {
