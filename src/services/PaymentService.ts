@@ -468,13 +468,16 @@ class PaymentService {
 
       // Registrar motivo do cancelamento, se fornecido
       if (reason) {
-        await prisma.cancellationReason.create({
-          data: {
-            subscriptionId,
-            userId,
-            reason,
-          }
-        });
+        await prisma.$queryRaw`
+          INSERT INTO "CancellationReason" ("id", "subscriptionId", "userId", "reason", "createdAt")
+          VALUES (
+            ${`cr_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`},
+            ${subscriptionId},
+            ${userId},
+            ${reason},
+            ${new Date()}
+          )
+        `;
       }
 
       // Enviar email de confirmação de cancelamento

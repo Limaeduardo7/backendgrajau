@@ -50,6 +50,7 @@ jest.mock('../../../../src/config/prisma', () => ({
   cancellationReason: {
     create: jest.fn(),
   },
+  $queryRaw: jest.fn(),
 }));
 
 jest.mock('../../../../src/config/payment', () => ({
@@ -253,7 +254,7 @@ describe('PaymentService', () => {
 
       (prisma.subscription.findUnique as jest.Mock).mockResolvedValue(subscriptionMock);
       (prisma.subscription.update as jest.Mock).mockResolvedValue({});
-      (prisma.cancellationReason.create as jest.Mock).mockResolvedValue({});
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue({});
       (EmailService.sendEmail as jest.Mock).mockResolvedValue(true);
 
       // Act
@@ -278,7 +279,7 @@ describe('PaymentService', () => {
           autoRenew: false,
         },
       });
-      expect(prisma.cancellationReason.create).toHaveBeenCalled();
+      expect(prisma.$queryRaw).toHaveBeenCalled();
       expect(EmailService.sendEmail).toHaveBeenCalled();
       expect(result).toEqual({
         success: true,
