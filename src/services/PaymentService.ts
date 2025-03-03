@@ -466,6 +466,17 @@ class PaymentService {
         },
       });
 
+      // Registrar motivo do cancelamento, se fornecido
+      if (reason) {
+        await prisma.cancellationReason.create({
+          data: {
+            subscriptionId,
+            userId,
+            reason,
+          }
+        });
+      }
+
       // Enviar email de confirmação de cancelamento
       if (subscription.user && subscription.plan) {
         await EmailService.sendSubscriptionCancelationEmail(
@@ -475,7 +486,10 @@ class PaymentService {
         );
       }
 
-      return { canceled: true };
+      return { 
+        success: true,
+        message: 'Assinatura cancelada com sucesso'
+      };
     } catch (error: any) {
       console.error('Erro ao cancelar assinatura:', error);
       throw error;
