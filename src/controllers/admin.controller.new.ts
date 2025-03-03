@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
+import logger from '../config/logger';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import AuditService from '../services/AuditService';
 
 class AdminController {
   // Dashboard e estatísticas
-  async getStats(req: Request, res: Response) {
+  getStats = async (req: Request, res: Response) => {
     try {
       const usersCount = await prisma.user.count();
       const businessesCount = await prisma.business.count();
@@ -45,6 +46,7 @@ class AdminController {
             include: {
               user: {
                 select: {
+                  id: true,
                   name: true,
                   email: true
                 }
@@ -54,8 +56,21 @@ class AdminController {
           }
         }
       });
-
-      return res.json({
+      
+      // Submissões pendentes
+      const pendingBusinesses = await prisma.business.count({
+        where: { status: 'PENDING' }
+      });
+      
+      const pendingProfessionals = await prisma.professional.count({
+        where: { status: 'PENDING' }
+      });
+      
+      const pendingJobs = await prisma.job.count({
+        where: { status: 'PENDING' }
+      });
+      
+      return res.status(200).json({
         counts: {
           users: usersCount,
           businesses: businessesCount,
@@ -67,311 +82,438 @@ class AdminController {
         },
         revenue: totalRevenue._sum.amount || 0,
         recentUsers,
-        recentPayments
+        recentPayments,
+        pending: {
+          businesses: pendingBusinesses,
+          professionals: pendingProfessionals,
+          jobs: pendingJobs,
+          total: pendingBusinesses + pendingProfessionals + pendingJobs
+        }
       });
     } catch (error) {
-      console.error('Erro ao buscar estatísticas:', error);
-      return res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+      logger.error('Erro ao obter estatísticas:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
-  }
+  };
 
-  // Listar todos os usuários com filtros
-  async getUsers(req: Request, res: Response) {
+  // Listar todos os usuários
+  getUsers = async (req: Request, res: Response) => {
     try {
-      const { role, status, search, page = 1, limit = 10 } = req.query;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string;
+      const skip = (page - 1) * limit;
       
-      const skip = (Number(page) - 1) * Number(limit);
-      
-      const where: any = {};
-      
-      if (role) {
-        where.role = role;
-      }
-      
-      if (status) {
-        where.status = status;
-      }
-      
-      if (search) {
-        where.OR = [
-          { name: { contains: search as string, mode: 'insensitive' } },
-          { email: { contains: search as string, mode: 'insensitive' } }
-        ];
-      }
+      const whereClause = search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } }
+            ]
+          }
+        : {};
       
       const users = await prisma.user.findMany({
-        where,
+        where: whereClause,
         skip,
-        take: Number(limit),
+        take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           businesses: {
             select: {
               id: true,
-              name: true
+              name: true,
+              status: true
             }
           },
           professional: {
             select: {
               id: true,
-              occupation: true
+              occupation: true,
+              status: true
+            }
+          },
+          _count: {
+            select: {
+              jobs: true,
+              applications: true
             }
           }
         }
       });
       
-      const total = await prisma.user.count({ where });
+      const total = await prisma.user.count({
+        where: whereClause
+      });
       
-      return res.json({
-        users,
+      return res.status(200).json({
+        data: users,
         pagination: {
           total,
-          pages: Math.ceil(total / Number(limit)),
-          page: Number(page),
-          limit: Number(limit)
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
         }
       });
     } catch (error) {
-      console.error('Erro ao listar usuários:', error);
-      return res.status(500).json({ error: 'Erro ao listar usuários' });
+      logger.error('Erro ao listar usuários:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
-  }
+  };
 
-  // Aprovar um item (empresa, profissional, vaga)
-  async approveItem(req: Request, res: Response) {
+  // Obter submissões pendentes
+  getPendingSubmissions = async (req: Request, res: Response) => {
     try {
-      const { itemId, itemType } = req.body;
+      const type = req.query.type as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
       
-      if (!itemId || !itemType) {
-        throw new ApiError(400, 'ID e tipo do item são obrigatórios');
-      }
-      
-      let result;
-      let email;
-      let name;
-      let subject;
-      let message;
-      
-      switch (itemType) {
-        case 'business':
-          result = await prisma.business.update({
-            where: { id: itemId },
-            data: { status: 'APPROVED' },
-            include: { user: true }
-          });
-          
-          email = result.user.email;
-          name = result.user.name;
-          subject = 'Sua empresa foi aprovada!';
-          message = `Olá ${name}, sua empresa "${result.name}" foi aprovada com sucesso no Anunciar Grajaú! Agora ela está visível para todos os usuários da plataforma.`;
-          break;
-          
-        case 'professional':
-          result = await prisma.professional.update({
-            where: { id: itemId },
-            data: { status: 'APPROVED' },
-            include: { user: true }
-          });
-          
-          email = result.user.email;
-          name = result.user.name;
-          subject = 'Seu perfil profissional foi aprovado!';
-          message = `Olá ${name}, seu perfil profissional foi aprovado com sucesso no Anunciar Grajaú! Agora você está visível para todos os usuários da plataforma.`;
-          break;
-          
-        case 'job':
-          result = await prisma.job.update({
-            where: { id: itemId },
-            data: { status: 'APPROVED' },
-            include: { business: { include: { user: true } } }
-          });
-          
-          email = result.business.user.email;
-          name = result.business.user.name;
-          subject = 'Sua vaga foi aprovada!';
-          message = `Olá ${name}, sua vaga "${result.title}" foi aprovada com sucesso no Anunciar Grajaú! Agora ela está visível para todos os usuários da plataforma.`;
-          break;
-          
-        default:
-          throw new ApiError(400, 'Tipo de item inválido');
-      }
-      
-      // Enviar email de notificação
-      await EmailService.sendEmail({
-        to: email,
-        subject,
-        html: `<p>${message}</p>`,
-      });
-      
-      return res.json({ 
-        success: true, 
-        message: `${itemType} aprovado com sucesso`,
-        data: result
-      });
-    } catch (error) {
-      console.error('Erro ao aprovar item:', error);
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Erro ao aprovar item' });
-    }
-  }
-
-  // Rejeitar um item (empresa, profissional, vaga)
-  async rejectItem(req: Request, res: Response) {
-    try {
-      const { itemId, itemType, reason } = req.body;
-      
-      if (!itemId || !itemType || !reason) {
-        throw new ApiError(400, 'ID, tipo do item e motivo são obrigatórios');
-      }
-      
-      let result;
-      let email;
-      let name;
-      let subject;
-      let message;
-      
-      switch (itemType) {
-        case 'business':
-          result = await prisma.business.update({
-            where: { id: itemId },
-            data: { status: 'REJECTED' },
-            include: { user: true }
-          });
-          
-          email = result.user.email;
-          name = result.user.name;
-          subject = 'Sua empresa não foi aprovada';
-          message = `Olá ${name}, infelizmente sua empresa "${result.name}" não foi aprovada no Anunciar Grajaú. Motivo: ${reason}. Você pode editar as informações e solicitar uma nova revisão.`;
-          break;
-          
-        case 'professional':
-          result = await prisma.professional.update({
-            where: { id: itemId },
-            data: { status: 'REJECTED' },
-            include: { user: true }
-          });
-          
-          email = result.user.email;
-          name = result.user.name;
-          subject = 'Seu perfil profissional não foi aprovado';
-          message = `Olá ${name}, infelizmente seu perfil profissional não foi aprovado no Anunciar Grajaú. Motivo: ${reason}. Você pode editar as informações e solicitar uma nova revisão.`;
-          break;
-          
-        case 'job':
-          result = await prisma.job.update({
-            where: { id: itemId },
-            data: { status: 'REJECTED' },
-            include: { business: { include: { user: true } } }
-          });
-          
-          email = result.business.user.email;
-          name = result.business.user.name;
-          subject = 'Sua vaga não foi aprovada';
-          message = `Olá ${name}, infelizmente sua vaga "${result.title}" não foi aprovada no Anunciar Grajaú. Motivo: ${reason}. Você pode editar as informações e solicitar uma nova revisão.`;
-          break;
-          
-        default:
-          throw new ApiError(400, 'Tipo de item inválido');
-      }
-      
-      // Enviar email de notificação
-      await EmailService.sendEmail({
-        to: email,
-        subject,
-        html: `<p>${message}</p>`,
-      });
-      
-      return res.json({ 
-        success: true, 
-        message: `${itemType} rejeitado com sucesso`,
-        data: result
-      });
-    } catch (error) {
-      console.error('Erro ao rejeitar item:', error);
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Erro ao rejeitar item' });
-    }
-  }
-
-  // Listar submissões pendentes
-  async getPendingSubmissions(req: Request, res: Response) {
-    try {
-      const { type } = req.query;
-      
-      let businesses: any[] = [];
-      let professionals: any[] = [];
-      let jobs: any[] = [];
+      let businesses = [];
+      let professionals = [];
+      let jobs = [];
+      let total = 0;
       
       if (!type || type === 'business') {
         businesses = await prisma.business.findMany({
           where: { status: 'PENDING' },
-          include: { user: true },
-          orderBy: { createdAt: 'desc' }
+          skip: type ? skip : 0,
+          take: type ? limit : 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
         });
+        
+        if (type === 'business') {
+          total = await prisma.business.count({
+            where: { status: 'PENDING' }
+          });
+        }
       }
       
       if (!type || type === 'professional') {
         professionals = await prisma.professional.findMany({
           where: { status: 'PENDING' },
-          include: { user: true },
-          orderBy: { createdAt: 'desc' }
+          skip: type ? skip : 0,
+          take: type ? limit : 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
         });
+        
+        if (type === 'professional') {
+          total = await prisma.professional.count({
+            where: { status: 'PENDING' }
+          });
+        }
       }
       
       if (!type || type === 'job') {
         jobs = await prisma.job.findMany({
           where: { status: 'PENDING' },
-          include: { business: true },
-          orderBy: { createdAt: 'desc' }
+          skip: type ? skip : 0,
+          take: type ? limit : 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            business: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        if (type === 'job') {
+          total = await prisma.job.count({
+            where: { status: 'PENDING' }
+          });
+        }
+      }
+      
+      if (!type) {
+        return res.status(200).json({
+          businesses,
+          professionals,
+          jobs
         });
       }
       
-      return res.json({
-        businesses,
-        professionals,
-        jobs,
-        total: businesses.length + professionals.length + jobs.length
+      const data = type === 'business' 
+        ? businesses 
+        : type === 'professional' 
+          ? professionals 
+          : jobs;
+      
+      return res.status(200).json({
+        data,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
       });
     } catch (error) {
-      console.error('Erro ao listar submissões pendentes:', error);
-      return res.status(500).json({ error: 'Erro ao listar submissões pendentes' });
+      logger.error('Erro ao obter submissões pendentes:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
-  }
+  };
 
-  // Relatório de pagamentos
-  async getPaymentsReport(req: Request, res: Response) {
+  // Aprovar um item
+  approveItem = async (req: Request, res: Response) => {
     try {
-      const { startDate, endDate } = req.query;
+      const { itemId, itemType } = req.body;
       
-      const where: any = {
-        status: 'PAID'
-      };
-      
-      if (startDate || endDate) {
-        where.createdAt = {};
-        
-        if (startDate) {
-          where.createdAt.gte = new Date(startDate as string);
-        }
-        
-        if (endDate) {
-          const end = new Date(endDate as string);
-          end.setHours(23, 59, 59, 999);
-          where.createdAt.lte = end;
-        }
+      if (!itemId || !itemType) {
+        return res.status(400).json({ error: 'ID e tipo do item são obrigatórios' });
       }
       
+      if (!['business', 'professional', 'job'].includes(itemType)) {
+        return res.status(400).json({ error: 'Tipo de item inválido' });
+      }
+      
+      let result;
+      
+      if (itemType === 'business') {
+        result = await prisma.business.update({
+          where: { id: itemId },
+          data: { status: 'APPROVED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'BUSINESS_APPROVED',
+            title: 'Empresa aprovada',
+            message: `Sua empresa "${result.name}" foi aprovada e já está disponível na plataforma.`,
+            entityId: result.id
+          }
+        });
+      } else if (itemType === 'professional') {
+        result = await prisma.professional.update({
+          where: { id: itemId },
+          data: { status: 'APPROVED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'PROFESSIONAL_APPROVED',
+            title: 'Perfil profissional aprovado',
+            message: 'Seu perfil profissional foi aprovado e já está disponível na plataforma.',
+            entityId: result.id
+          }
+        });
+      } else {
+        result = await prisma.job.update({
+          where: { id: itemId },
+          data: { status: 'APPROVED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            business: true
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'JOB_APPROVED',
+            title: 'Vaga aprovada',
+            message: `Sua vaga "${result.title}" foi aprovada e já está disponível na plataforma.`,
+            entityId: result.id
+          }
+        });
+      }
+      
+      return res.status(200).json({
+        message: 'Item aprovado com sucesso',
+        item: result
+      });
+    } catch (error) {
+      logger.error('Erro ao aprovar item:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  };
+
+  // Rejeitar um item
+  rejectItem = async (req: Request, res: Response) => {
+    try {
+      const { itemId, itemType, reason } = req.body;
+      
+      if (!itemId || !itemType || !reason) {
+        return res.status(400).json({ error: 'ID, tipo do item e motivo são obrigatórios' });
+      }
+      
+      if (!['business', 'professional', 'job'].includes(itemType)) {
+        return res.status(400).json({ error: 'Tipo de item inválido' });
+      }
+      
+      let result;
+      
+      if (itemType === 'business') {
+        result = await prisma.business.update({
+          where: { id: itemId },
+          data: { status: 'REJECTED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'BUSINESS_REJECTED',
+            title: 'Empresa rejeitada',
+            message: `Sua empresa "${result.name}" foi rejeitada. Motivo: ${reason}`,
+            entityId: result.id
+          }
+        });
+      } else if (itemType === 'professional') {
+        result = await prisma.professional.update({
+          where: { id: itemId },
+          data: { status: 'REJECTED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'PROFESSIONAL_REJECTED',
+            title: 'Perfil profissional rejeitado',
+            message: `Seu perfil profissional foi rejeitado. Motivo: ${reason}`,
+            entityId: result.id
+          }
+        });
+      } else {
+        result = await prisma.job.update({
+          where: { id: itemId },
+          data: { status: 'REJECTED' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            business: true
+          }
+        });
+        
+        // Criar notificação
+        await prisma.notification.create({
+          data: {
+            userId: result.userId,
+            type: 'JOB_REJECTED',
+            title: 'Vaga rejeitada',
+            message: `Sua vaga "${result.title}" foi rejeitada. Motivo: ${reason}`,
+            entityId: result.id
+          }
+        });
+      }
+      
+      return res.status(200).json({
+        message: 'Item rejeitado com sucesso',
+        item: result
+      });
+    } catch (error) {
+      logger.error('Erro ao rejeitar item:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  };
+
+  // Obter relatório de pagamentos
+  getPaymentsReport = async (req: Request, res: Response) => {
+    try {
+      const startDate = req.query.startDate 
+        ? new Date(req.query.startDate as string) 
+        : new Date(new Date().setMonth(new Date().getMonth() - 1));
+      
+      const endDate = req.query.endDate 
+        ? new Date(req.query.endDate as string) 
+        : new Date();
+      
+      // Ajustar endDate para o final do dia
+      endDate.setHours(23, 59, 59, 999);
+      
       const payments = await prisma.payment.findMany({
-        where,
+        where: {
+          createdAt: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
         include: {
           subscription: {
             include: {
               user: {
                 select: {
+                  id: true,
                   name: true,
                   email: true
                 }
@@ -383,42 +525,57 @@ class AdminController {
         orderBy: { createdAt: 'desc' }
       });
       
-      const totalAmount = await prisma.payment.aggregate({
-        where,
-        _sum: { amount: true }
-      });
+      // Calcular totais
+      const totalAmount = payments.reduce((sum, payment) => {
+        return payment.status === 'PAID' ? sum + Number(payment.amount) : sum;
+      }, 0);
+      
+      const totalPaid = payments.filter(p => p.status === 'PAID').length;
+      const totalPending = payments.filter(p => p.status === 'PENDING').length;
+      const totalFailed = payments.filter(p => p.status === 'FAILED').length;
       
       // Agrupar por plano
-      const planStats = await prisma.payment.groupBy({
-        by: ['subscriptionId'],
-        where,
-        _sum: { amount: true },
-        _count: true
+      const planStats = {};
+      payments.forEach(payment => {
+        if (payment.subscription?.plan) {
+          const planName = payment.subscription.plan.name;
+          if (!planStats[planName]) {
+            planStats[planName] = {
+              count: 0,
+              amount: 0
+            };
+          }
+          
+          if (payment.status === 'PAID') {
+            planStats[planName].count++;
+            planStats[planName].amount += Number(payment.amount);
+          }
+        }
       });
       
-      // Agrupar por mês
-      const monthlyStats = await prisma.payment.groupBy({
-        by: ['createdAt'],
-        where,
-        _sum: { amount: true },
-        _count: true
-      });
-      
-      return res.json({
+      return res.status(200).json({
         payments,
-        totalAmount: totalAmount._sum.amount || 0,
-        totalCount: payments.length,
+        stats: {
+          totalAmount,
+          totalPaid,
+          totalPending,
+          totalFailed,
+          total: payments.length
+        },
         planStats,
-        monthlyStats
+        dateRange: {
+          startDate,
+          endDate
+        }
       });
     } catch (error) {
-      console.error('Erro ao gerar relatório de pagamentos:', error);
-      return res.status(500).json({ error: 'Erro ao gerar relatório de pagamentos' });
+      logger.error('Erro ao obter relatório de pagamentos:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
-  }
+  };
 
   // Atualizar configurações
-  async updateSettings(req: Request, res: Response) {
+  updateSettings = async (req: Request, res: Response) => {
     try {
       const { maintenanceMode, allowRegistrations, featuredLimit, emailNotifications, autoApproveUsers } = req.body;
       
@@ -440,10 +597,10 @@ class AdminController {
       console.error('Erro ao atualizar configurações:', error);
       return res.status(500).json({ error: 'Erro ao atualizar configurações' });
     }
-  }
+  };
 
   // Métodos de auditoria
-  async getAuditLogs(req: Request, res: Response) {
+  getAuditLogs = async (req: Request, res: Response) => {
     try {
       const {
         userId,
@@ -486,9 +643,9 @@ class AdminController {
       console.error('Erro ao buscar logs de auditoria:', error);
       return res.status(500).json({ error: 'Erro ao buscar logs de auditoria' });
     }
-  }
+  };
 
-  async getEntityAuditTrail(req: Request, res: Response) {
+  getEntityAuditTrail = async (req: Request, res: Response) => {
     try {
       const { type, id } = req.params;
 
@@ -506,9 +663,9 @@ class AdminController {
       }
       return res.status(500).json({ error: 'Erro ao buscar histórico de auditoria da entidade' });
     }
-  }
+  };
 
-  async getUserAuditTrail(req: Request, res: Response) {
+  getUserAuditTrail = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { page = '1', limit = '20' } = req.query;
@@ -531,7 +688,7 @@ class AdminController {
       }
       return res.status(500).json({ error: 'Erro ao buscar histórico de auditoria do usuário' });
     }
-  }
+  };
 }
 
 export default new AdminController(); 
