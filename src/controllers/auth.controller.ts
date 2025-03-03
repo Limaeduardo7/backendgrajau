@@ -11,16 +11,29 @@ export class AuthController {
    */
   register = async (req: Request, res: Response) => {
     try {
+      // Extrair dados do corpo da requisição
       const { firstName, lastName, email, password } = req.body;
 
-      logger.info(`Tentativa de registro para o email: ${email}`);
+      logger.info(`Tentativa de registro para o email: ${email || 'não fornecido'}`);
 
       // Verificar se todos os campos obrigatórios foram fornecidos
       if (!firstName || !lastName || !email || !password) {
-        logger.warn(`Tentativa de registro com dados incompletos: ${JSON.stringify(req.body)}`);
+        logger.warn(`Tentativa de registro com dados incompletos: ${JSON.stringify({
+          firstName: firstName ? 'fornecido' : 'não fornecido',
+          lastName: lastName ? 'fornecido' : 'não fornecido',
+          email: email ? 'fornecido' : 'não fornecido',
+          password: password ? 'fornecido' : 'não fornecido'
+        })}`);
+        
         return res.status(400).json({ 
           error: 'Dados incompletos', 
-          message: 'Nome, sobrenome, email e senha são obrigatórios' 
+          message: 'Nome, sobrenome, email e senha são obrigatórios',
+          missingFields: {
+            firstName: !firstName,
+            lastName: !lastName,
+            email: !email,
+            password: !password
+          }
         });
       }
 
@@ -56,8 +69,18 @@ export class AuthController {
         });
 
         logger.info(`Usuário criado no Clerk: ${clerkUser.id}`);
-      } catch (error) {
-        logger.error(`Erro ao criar usuário no Clerk: ${error}`);
+      } catch (error: any) {
+        logger.error(`Erro ao criar usuário no Clerk: ${JSON.stringify(error)}`);
+        
+        // Verificar se é um erro de validação do Clerk
+        if (error.errors && Array.isArray(error.errors)) {
+          const errorMessages = error.errors.map((err: any) => err.message).join(', ');
+          return res.status(400).json({ 
+            error: 'Erro de validação', 
+            message: errorMessages || 'Dados inválidos para criação de usuário'
+          });
+        }
+        
         return res.status(500).json({ 
           error: 'Erro ao criar usuário', 
           message: 'Não foi possível criar o usuário. Verifique se os dados estão corretos.' 
@@ -124,15 +147,25 @@ export class AuthController {
    */
   login = async (req: Request, res: Response) => {
     try {
+      // Extrair dados do corpo da requisição
       const { email, password } = req.body;
 
-      logger.info(`Tentativa de login para o email: ${email}`);
+      logger.info(`Tentativa de login para o email: ${email || 'não fornecido'}`);
 
+      // Verificar se todos os campos obrigatórios foram fornecidos
       if (!email || !password) {
-        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify(req.body)}`);
+        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify({
+          email: email ? 'fornecido' : 'não fornecido',
+          password: password ? 'fornecido' : 'não fornecido'
+        })}`);
+        
         return res.status(400).json({ 
           error: 'Dados incompletos', 
-          message: 'Email e senha são obrigatórios' 
+          message: 'Email e senha são obrigatórios',
+          missingFields: {
+            email: !email,
+            password: !password
+          }
         });
       }
 
@@ -140,6 +173,7 @@ export class AuthController {
         // Verificar se o usuário existe no Clerk
         const users = await clerkClient.users.getUserList({
           emailAddress: [email],
+          limit: 1,
         });
 
         if (users.length === 0) {
@@ -150,61 +184,71 @@ export class AuthController {
           });
         }
 
-        // Tentar criar um token de sessão (isso vai falhar se a senha estiver incorreta)
+        // Tentar criar um token de sessão
         try {
-          // Autenticar o usuário com email e senha usando o método de verificação de senha
-          // Como o Clerk não tem um método direto para verificar senha, vamos criar o token diretamente
-          // e confiar na verificação do Clerk ao usar o token
+          // Como o Clerk não tem um método direto para verificar senha via API,
+          // vamos tentar criar um token e confiar na verificação do Clerk
           const signInToken = await clerkClient.signInTokens.createSignInToken({
             userId: users[0].id,
             expiresInSeconds: 60 * 60 * 24 * 7, // 7 dias
           });
 
           // Verificar se o usuário existe no banco de dados local
-          const user = await prisma.user.findFirst({
+          let user = await prisma.user.findFirst({
             where: { clerkId: users[0].id },
           });
 
           if (!user) {
             // Criar usuário no banco de dados local se não existir
-            const newUser = await prisma.user.create({
-              data: {
+            try {
+              user = await prisma.user.create({
+                data: {
+                  clerkId: users[0].id,
+                  name: `${users[0].firstName} ${users[0].lastName}`,
+                  email: email,
+                  role: 'USER',
+                  status: 'APPROVED', // Definir como APPROVED já que o usuário existe no Clerk
+                },
+              });
+
+              logger.info(`Usuário criado no banco de dados após login: ${user.id}`);
+            } catch (dbError) {
+              logger.error(`Erro ao criar usuário no banco de dados após login: ${dbError}`);
+              // Continuar mesmo se falhar, pois o token já foi criado
+            }
+          }
+
+          if (user) {
+            logger.info(`Login realizado com sucesso: ${user.id}`);
+
+            return res.status(200).json({
+              message: 'Login realizado com sucesso',
+              token: signInToken.token,
+              user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                status: user.status,
+              },
+            });
+          } else {
+            // Caso raro onde não conseguimos criar o usuário no banco local
+            logger.info(`Login realizado com sucesso (apenas no Clerk): ${users[0].id}`);
+            
+            return res.status(200).json({
+              message: 'Login realizado com sucesso',
+              token: signInToken.token,
+              user: {
                 clerkId: users[0].id,
                 name: `${users[0].firstName} ${users[0].lastName}`,
                 email: email,
                 role: 'USER',
                 status: 'PENDING',
               },
-            });
-
-            logger.info(`Usuário criado no banco de dados após login: ${newUser.id}`);
-
-            return res.status(200).json({
-              message: 'Login realizado com sucesso',
-              token: signInToken.token,
-              user: {
-                id: newUser.id,
-                name: newUser.name,
-                email: newUser.email,
-                role: newUser.role,
-                status: newUser.status,
-              },
+              warning: 'Usuário não encontrado no banco de dados local'
             });
           }
-
-          logger.info(`Login realizado com sucesso: ${user.id}`);
-
-          return res.status(200).json({
-            message: 'Login realizado com sucesso',
-            token: signInToken.token,
-            user: {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              role: user.role,
-              status: user.status,
-            },
-          });
         } catch (authError) {
           logger.error(`Erro na autenticação: ${authError}`);
           return res.status(401).json({ 
