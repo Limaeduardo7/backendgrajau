@@ -189,30 +189,31 @@ export class ProfessionalController {
 
   getPendingProfessionals = async (req: Request, res: Response) => {
     try {
-      const { page = 1, limit = 10 } = req.query;
-      const userId = req.user?.id;
-      const isAdmin = req.user?.role === 'ADMIN';
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 10;
       
-      if (!isAdmin) {
-        return res.status(403).json({ error: 'Acesso negado - somente administradores podem acessar esta rota' });
+      const user = req.user;
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(403).json({ message: 'Não autorizado. Acesso apenas para administradores.' });
       }
       
-      logger.info(`Listando profissionais pendentes (página ${page}, limite ${limit})`);
+      logger.info(`Buscando profissionais com status PENDING (${page}/${limit})`);
       
       const result = await this.professionalService.listByStatus({
         status: 'PENDING',
-        page: Number(page),
-        limit: Number(limit)
+        page,
+        limit
       });
       
-      res.json(result);
+      return res.json(result);
     } catch (error) {
-      logger.error('Erro ao listar profissionais pendentes:', error);
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Erro interno do servidor' });
+      logger.error('Erro ao buscar profissionais pendentes:', error);
+      
+      if (error instanceof Error) {
+        return res.status(500).json({ message: error.message });
       }
+      
+      return res.status(500).json({ message: 'Erro interno do servidor' });
     }
   };
 } 
