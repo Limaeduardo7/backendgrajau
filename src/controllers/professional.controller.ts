@@ -186,4 +186,33 @@ export class ProfessionalController {
       }
     }
   };
+
+  getPendingProfessionals = async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const userId = req.user?.id;
+      const isAdmin = req.user?.role === 'ADMIN';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Acesso negado - somente administradores podem acessar esta rota' });
+      }
+      
+      logger.info(`Listando profissionais pendentes (página ${page}, limite ${limit})`);
+      
+      const result = await this.professionalService.listByStatus({
+        status: 'PENDING',
+        page: Number(page),
+        limit: Number(limit)
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Erro ao listar profissionais pendentes:', error);
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
 } 

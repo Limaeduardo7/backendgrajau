@@ -939,6 +939,62 @@ class AdminController {
       });
     }
   };
+
+  async getContentStats(req: Request, res: Response) {
+    try {
+      logger.info('Obtendo estatísticas de conteúdo');
+      
+      // Buscar estatísticas dos blogs
+      const totalBlogs = await prisma.blogPost.count();
+      const publishedBlogs = await prisma.blogPost.count({
+        where: { status: 'PUBLISHED' as any }
+      });
+      const pendingBlogs = await prisma.blogPost.count({
+        where: { status: 'PENDING' as any }
+      });
+      
+      // Buscar estatísticas dos jobs
+      const totalJobs = await prisma.job.count();
+      const activeJobs = await prisma.job.count({
+        where: { status: 'ACTIVE' as any }
+      });
+      const closedJobs = await prisma.job.count({
+        where: { status: 'CLOSED' as any }
+      });
+      
+      // Buscar estatísticas das aplicações
+      const totalApplications = await prisma.application.count();
+      
+      // Buscar estatísticas de usuários
+      const totalUsers = await prisma.user.count();
+      const totalProfessionals = await prisma.professional.count();
+      const totalBusinesses = await prisma.business.count();
+      
+      return res.json({
+        blogs: {
+          total: totalBlogs,
+          published: publishedBlogs,
+          pending: pendingBlogs
+        },
+        jobs: {
+          total: totalJobs,
+          active: activeJobs,
+          closed: closedJobs
+        },
+        applications: {
+          total: totalApplications
+        },
+        users: {
+          total: totalUsers,
+          professionals: totalProfessionals,
+          businesses: totalBusinesses
+        }
+      });
+    } catch (error) {
+      logger.error('Erro ao obter estatísticas de conteúdo:', error);
+      return res.status(500).json({ message: 'Erro ao obter estatísticas de conteúdo' });
+    }
+  }
 }
 
 export default new AdminController(); 

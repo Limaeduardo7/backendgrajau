@@ -579,4 +579,26 @@ router.get('/dashboard', requireAuth, isAdmin, logAdminAction, adminController.g
  */
 router.get('/dashboard/users', requireAuth, isAdmin, logAdminAction, adminController.getUsersStats);
 
+/**
+ * @openapi
+ * /api/admin/dashboard/content:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get content statistics for admin dashboard
+ *     description: Returns statistics about content (blogs, jobs, applications, users) in the platform.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Content statistics retrieved successfully
+ *       401:
+ *         description: Unauthorized - User is not authenticated
+ *       403:
+ *         description: Forbidden - User is not an admin
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/dashboard/content', requireAuth, isAdmin, logAdminAction, adminController.getContentStats);
+
 export default router; 

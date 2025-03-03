@@ -412,4 +412,37 @@ router.delete('/:id/photos/:photoIndex', requireRole(['USER', 'BUSINESS']), busi
  */
 router.patch('/:id/status', requireRole(['USER', 'BUSINESS']), validateUpdateStatus, businessController.updateStatus);
 
+/**
+ * @swagger
+ * /api/businesses/pending:
+ *   get:
+ *     summary: Lista empresas com status pendente (apenas para administradores)
+ *     tags: [Businesses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Número de itens por página
+ *     responses:
+ *       200:
+ *         description: Lista de empresas pendentes
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido - apenas admin
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/pending', requireAuth, requireRole(['ADMIN']), businessController.getPendingBusinesses);
+
 export default router; 

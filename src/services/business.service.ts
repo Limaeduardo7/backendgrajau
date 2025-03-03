@@ -296,4 +296,41 @@ export class BusinessService {
       },
     });
   }
+
+  async listByStatus(params: { status: string; page: number; limit: number }) {
+    const { status, page, limit } = params;
+    const skip = (page - 1) * limit;
+    
+    logger.info(`Buscando empresas com status ${status}`);
+    
+    const where = { status: status as any };
+    
+    const businesses = await prisma.business.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+    
+    const total = await prisma.business.count({ where });
+    
+    return {
+      businesses,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      limit
+    };
+  }
 } 

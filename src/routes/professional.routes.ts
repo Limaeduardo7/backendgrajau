@@ -34,4 +34,41 @@ router.post('/:id/portfolio', requireRole(['USER', 'PROFESSIONAL']), uploadMiddl
 router.delete('/:id/portfolio/:itemIndex', requireRole(['USER', 'PROFESSIONAL']), professionalController.removePortfolioItem);
 router.get('/me/applications', requireRole(['USER', 'PROFESSIONAL']), professionalController.listApplications);
 
+/**
+ * @openapi
+ * /api/professionals/pending:
+ *   get:
+ *     tags:
+ *       - Professional
+ *     summary: List all pending professionals
+ *     description: Returns a paginated list of professionals with pending status. Only accessible by admins.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         description: Page number
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         description: Number of items per page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: A paginated list of pending professionals
+ *       401:
+ *         description: Unauthorized - User is not authenticated
+ *       403:
+ *         description: Forbidden - User is not an admin
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/pending', requireAuth, requireRole(['ADMIN']), professionalController.getPendingProfessionals);
+
 export default router; 

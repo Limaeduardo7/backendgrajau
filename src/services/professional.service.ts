@@ -3,6 +3,7 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
+import logger from '../config/logger';
 
 interface ListProfessionalsParams {
   page: number;
@@ -251,5 +252,42 @@ export class ProfessionalService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async listByStatus(params: { status: string; page: number; limit: number }) {
+    const { status, page, limit } = params;
+    const skip = (page - 1) * limit;
+    
+    logger.info(`Buscando profissionais com status ${status}`);
+    
+    const where = { status: status as any };
+    
+    const professionals = await prisma.professional.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+    
+    const total = await prisma.professional.count({ where });
+    
+    return {
+      professionals,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      limit
+    };
   }
 } 

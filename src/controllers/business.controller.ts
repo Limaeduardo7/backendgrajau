@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BusinessService } from '../services/business.service';
 import { ApiError } from '../utils/ApiError';
+import logger from '../config/logger';
 
 export class BusinessController {
   private businessService: BusinessService;
@@ -163,6 +164,35 @@ export class BusinessController {
       const business = await this.businessService.updateStatus(id, status, userId);
       res.json(business);
     } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  getPendingBusinesses = async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const userId = req.user?.id;
+      const isAdmin = req.user?.role === 'ADMIN';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Acesso negado - somente administradores podem acessar esta rota' });
+      }
+      
+      logger.info(`Listando empresas pendentes (página ${page}, limite ${limit})`);
+      
+      const result = await this.businessService.listByStatus({
+        status: 'PENDING',
+        page: Number(page),
+        limit: Number(limit)
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Erro ao listar empresas pendentes:', error);
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
