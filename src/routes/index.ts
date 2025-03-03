@@ -10,6 +10,7 @@ import paymentRoutes from './payment.routes';
 import reviewRoutes from './review.routes';
 import applicationRoutes from './application.routes';
 import authRoutes from './auth.routes';
+import userRoutes from './user.routes';
 import { requireAuth, validateUser } from '../middlewares/auth.middleware';
 import auditRoutes from './audit.routes';
 import { AuthController } from '../controllers/auth.controller';
@@ -29,6 +30,9 @@ router.get('/me', requireAuth, validateUser, (req: Request, res: Response) => {
 
 // Registrando as rotas de autenticação
 router.use('/auth', authRoutes);
+
+// Registrando as rotas de usuário
+router.use('/users', userRoutes);
 
 // Alias para a rota de registro (para compatibilidade)
 router.post('/register', authController.register);
