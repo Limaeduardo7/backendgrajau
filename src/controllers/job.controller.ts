@@ -23,14 +23,26 @@ export class JobController {
         featured: featured === 'true',
       });
       
-      logger.info(`Listando ${result.jobs?.length || 0} vagas`);
+      // Garantir que o resultado tenha a estrutura correta
+      // O frontend espera um objeto com a propriedade 'list'
+      if (!result || !result.jobs) {
+        logger.warn('A consulta de vagas retornou um resultado vazio ou inválido');
+        return res.json({
+          list: [],
+          total: 0,
+          pages: 1,
+          currentPage: 1
+        });
+      }
       
-      // Garantir que o resultado tenha a propriedade "list" que o frontend espera
+      logger.info(`Listando ${result.jobs.length} vagas`);
+      
+      // Estrutura esperada pelo frontend
       res.json({
-        list: result.jobs || [],
-        total: result.total || 0,
-        pages: result.pages || 1,
-        currentPage: result.currentPage || 1
+        list: result.jobs,
+        total: result.total,
+        pages: result.pages,
+        currentPage: result.currentPage
       });
     } catch (error) {
       logger.error('Erro ao listar vagas:', error);

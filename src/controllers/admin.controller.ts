@@ -828,20 +828,32 @@ class AdminController {
       const totalUsers = await prisma.user.count();
       
       // Usuários por papel (role)
-      const usersByRole = await prisma.$queryRaw`
+      const usersByRoleRaw = await prisma.$queryRaw`
         SELECT role, COUNT(*) as count
         FROM "User"
         GROUP BY role
         ORDER BY count DESC
       `;
       
+      // Converter BigInt para Number nas consultas raw
+      const usersByRole = Array.isArray(usersByRoleRaw) ? usersByRoleRaw.map(item => ({
+        role: item.role,
+        count: Number(item.count)
+      })) : [];
+      
       // Usuários por status
-      const usersByStatus = await prisma.$queryRaw`
+      const usersByStatusRaw = await prisma.$queryRaw`
         SELECT status, COUNT(*) as count
         FROM "User"
         GROUP BY status
         ORDER BY count DESC
       `;
+      
+      // Converter BigInt para Number
+      const usersByStatus = Array.isArray(usersByStatusRaw) ? usersByStatusRaw.map(item => ({
+        status: item.status,
+        count: Number(item.count)
+      })) : [];
       
       // Usuários criados no período
       const newUsers = await prisma.user.count({
@@ -875,7 +887,7 @@ class AdminController {
       });
       
       // Usuários por mês (para gráfico de crescimento)
-      const usersByMonth = await prisma.$queryRaw`
+      const usersByMonthRaw = await prisma.$queryRaw`
         SELECT 
           DATE_TRUNC('month', "createdAt") as month,
           COUNT(*) as count
@@ -886,6 +898,12 @@ class AdminController {
         ORDER BY 
           month ASC
       `;
+      
+      // Converter BigInt para Number
+      const usersByMonth = Array.isArray(usersByMonthRaw) ? usersByMonthRaw.map(item => ({
+        month: item.month,
+        count: Number(item.count)
+      })) : [];
       
       // Estatísticas adicionais
       const professionalCount = await prisma.user.count({

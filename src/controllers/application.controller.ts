@@ -1,8 +1,11 @@
 import { Request, Response } from 'express';
-import prisma from '../config/prisma';
+import { PrismaClient } from '@prisma/client';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import uploadMiddleware from '../middlewares/uploadMiddleware';
+import logger from '../config/logger';
+
+const prisma = new PrismaClient();
 
 export class ApplicationController {
   // Candidatar-se a uma vaga
@@ -85,7 +88,6 @@ export class ApplicationController {
       }
       return res.status(500).json({ error: 'Erro ao candidatar-se à vaga' });
     }
-  }
   
   // Listar candidaturas a uma vaga (para empresas)
   async getJobApplications(req: Request, res: Response) {
@@ -97,27 +99,6 @@ export class ApplicationController {
         throw new ApiError(401, 'Usuário não autenticado');
       }
       
-      // Verificar se a vaga existe e pertence ao usuário
-      const job = await prisma.job.findUnique({
-        where: { id: jobId },
-        include: {
-          business: true
-        }
-      });
-      
-      if (!job) {
-        throw new ApiError(404, 'Vaga não encontrada');
-      }
-      
-      // Verificar se o usuário é o dono da empresa ou um admin
-      const isAdmin = req.user?.role === 'ADMIN';
-      const isBusinessOwner = job.business.userId === userId;
-      
-      if (!isBusinessOwner && !isAdmin) {
-        throw new ApiError(403, 'Você não tem permissão para acessar as candidaturas desta vaga');
-      }
-      
-      // Buscar candidaturas
       const applications = await prisma.application.findMany({
         where: { jobId },
         include: {
@@ -126,29 +107,30 @@ export class ApplicationController {
               id: true,
               name: true,
               email: true,
-              professional: {
-                select: {
-                  occupation: true,
-                  specialties: true,
-                  experience: true,
-                  portfolio: true
-                }
-              }
+              professional: true
+            }
+          },
+          job: {
+            select: {
+              id: true,
+              title: true,
+              businessId: true
             }
           }
         },
         orderBy: { createdAt: 'desc' }
-      });
+      }) || [];
       
+      logger.info(`Retornando ${applications.length} candidaturas para a vaga ${jobId}`);
       return res.json(applications);
     } catch (error) {
+      logger.error('Erro ao obter candidaturas para vaga:', error);
       console.error('Erro ao listar candidaturas:', error);
       if (error instanceof ApiError) {
         return res.status(error.statusCode).json({ error: error.message });
       }
       return res.status(500).json({ error: 'Erro ao listar candidaturas' });
     }
-  }
   
   // Listar minhas candidaturas (para profissionais)
   async getMyApplications(req: Request, res: Response) {
@@ -159,35 +141,35 @@ export class ApplicationController {
         throw new ApiError(401, 'Usuário não autenticado');
       }
       
-      // Buscar candidaturas do usuário
       const applications = await prisma.application.findMany({
         where: { userId },
         include: {
           job: {
-            include: {
+            select: {
+              id: true,
+              title: true,
               business: {
                 select: {
                   id: true,
-                  name: true,
-                  city: true,
-                  state: true
+                  name: true
                 }
               }
             }
           }
         },
         orderBy: { createdAt: 'desc' }
-      });
+      }) || [];
       
+      logger.info(`Retornando ${applications.length} candidaturas para o usuário ${userId}`);
       return res.json(applications);
     } catch (error) {
+      logger.error('Erro ao obter candidaturas do usuário:', error);
       console.error('Erro ao listar candidaturas:', error);
       if (error instanceof ApiError) {
         return res.status(error.statusCode).json({ error: error.message });
       }
       return res.status(500).json({ error: 'Erro ao listar candidaturas' });
     }
-  }
   
   // Atualizar status de uma candidatura (para empresas)
   async updateApplicationStatus(req: Request, res: Response) {
@@ -317,7 +299,6 @@ export class ApplicationController {
       }
       return res.status(500).json({ error: 'Erro ao cancelar candidatura' });
     }
-  }
 }
 
 export default new ApplicationController(); 

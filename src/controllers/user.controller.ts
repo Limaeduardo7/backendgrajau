@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
+import { ApiError } from '../utils/ApiError';
 
 class UserController {
   // Obter perfil do usuário
@@ -81,51 +82,48 @@ class UserController {
   getApplications = async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const skip = (page - 1) * limit;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Não autorizado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
+      // Buscar candidaturas do usuário
       const applications = await prisma.application.findMany({
-        where: { userId },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+        where: {
+          userId
+        },
         include: {
           job: {
-            select: {
-              id: true,
-              title: true,
-              business: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
+            include: {
+              business: true
+            }
+          }
         },
-      });
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }) || [];
 
-      const total = await prisma.application.count({
-        where: { userId },
-      });
-
+      logger.info(`Retornando ${applications.length} candidaturas para o usuário ${userId}`);
+      
+      // Estruturar a resposta para o frontend
       return res.status(200).json({
+        success: true,
         data: applications,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
-        },
+        count: applications.length
       });
     } catch (error) {
-      logger.error('Erro ao obter candidaturas do usuário:', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      logger.error('Erro ao buscar candidaturas:', error);
+      if (error instanceof ApiError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
     }
   };
 
