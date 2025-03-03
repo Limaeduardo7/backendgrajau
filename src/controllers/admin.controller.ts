@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
@@ -11,6 +12,7 @@ interface AuthRequest extends Request {
     id: string;
     clerkId: string;
     role: string;
+    email: string;
   };
 }
 

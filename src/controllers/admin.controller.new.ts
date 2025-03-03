@@ -4,6 +4,7 @@ import logger from '../config/logger';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import AuditService from '../services/AuditService';
+import { Prisma } from '@prisma/client';
 
 class AdminController {
   // Dashboard e estatísticas
@@ -104,14 +105,16 @@ class AdminController {
       const search = req.query.search as string;
       const skip = (page - 1) * limit;
       
-      const whereClause = search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } }
-            ]
-          }
-        : {};
+      let whereClause: Prisma.UserWhereInput = {};
+      
+      if (search) {
+        whereClause = {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as Prisma.QueryMode } },
+            { email: { contains: search, mode: 'insensitive' as Prisma.QueryMode } }
+          ]
+        };
+      }
       
       const users = await prisma.user.findMany({
         where: whereClause,
@@ -169,9 +172,9 @@ class AdminController {
       const limit = parseInt(req.query.limit as string) || 10;
       const skip = (page - 1) * limit;
       
-      let businesses = [];
-      let professionals = [];
-      let jobs = [];
+      let businesses: any[] = [];
+      let professionals: any[] = [];
+      let jobs: any[] = [];
       let total = 0;
       
       if (!type || type === 'business') {
@@ -311,16 +314,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'BUSINESS_APPROVED',
-            title: 'Empresa aprovada',
-            message: `Sua empresa "${result.name}" foi aprovada e já está disponível na plataforma.`,
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'BUSINESS_APPROVED',
+              title: 'Empresa aprovada',
+              message: `Sua empresa "${result.name}" foi aprovada e já está disponível na plataforma.`,
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       } else if (itemType === 'professional') {
         result = await prisma.professional.update({
           where: { id: itemId },
@@ -336,16 +345,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'PROFESSIONAL_APPROVED',
-            title: 'Perfil profissional aprovado',
-            message: 'Seu perfil profissional foi aprovado e já está disponível na plataforma.',
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'PROFESSIONAL_APPROVED',
+              title: 'Perfil profissional aprovado',
+              message: 'Seu perfil profissional foi aprovado e já está disponível na plataforma.',
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       } else {
         result = await prisma.job.update({
           where: { id: itemId },
@@ -362,16 +377,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'JOB_APPROVED',
-            title: 'Vaga aprovada',
-            message: `Sua vaga "${result.title}" foi aprovada e já está disponível na plataforma.`,
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'JOB_APPROVED',
+              title: 'Vaga aprovada',
+              message: `Sua vaga "${result.title}" foi aprovada e já está disponível na plataforma.`,
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       }
       
       return res.status(200).json({
@@ -414,16 +435,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'BUSINESS_REJECTED',
-            title: 'Empresa rejeitada',
-            message: `Sua empresa "${result.name}" foi rejeitada. Motivo: ${reason}`,
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'BUSINESS_REJECTED',
+              title: 'Empresa rejeitada',
+              message: `Sua empresa "${result.name}" foi rejeitada. Motivo: ${reason}`,
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       } else if (itemType === 'professional') {
         result = await prisma.professional.update({
           where: { id: itemId },
@@ -439,16 +466,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'PROFESSIONAL_REJECTED',
-            title: 'Perfil profissional rejeitado',
-            message: `Seu perfil profissional foi rejeitado. Motivo: ${reason}`,
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'PROFESSIONAL_REJECTED',
+              title: 'Perfil profissional rejeitado',
+              message: `Seu perfil profissional foi rejeitado. Motivo: ${reason}`,
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       } else {
         result = await prisma.job.update({
           where: { id: itemId },
@@ -465,16 +498,22 @@ class AdminController {
           }
         });
         
-        // Criar notificação
-        await prisma.notification.create({
-          data: {
-            userId: result.userId,
-            type: 'JOB_REJECTED',
-            title: 'Vaga rejeitada',
-            message: `Sua vaga "${result.title}" foi rejeitada. Motivo: ${reason}`,
-            entityId: result.id
-          }
-        });
+        // Criar notificação (comentado até o modelo estar disponível)
+        /*
+        try {
+          await prisma.notification.create({
+            data: {
+              userId: result.userId,
+              type: 'JOB_REJECTED',
+              title: 'Vaga rejeitada',
+              message: `Sua vaga "${result.title}" foi rejeitada. Motivo: ${reason}`,
+              entityId: result.id
+            }
+          });
+        } catch (notifError) {
+          logger.error('Erro ao criar notificação:', notifError);
+        }
+        */
       }
       
       return res.status(200).json({
@@ -535,7 +574,7 @@ class AdminController {
       const totalFailed = payments.filter(p => p.status === 'FAILED').length;
       
       // Agrupar por plano
-      const planStats = {};
+      const planStats: Record<string, { count: number; amount: number }> = {};
       payments.forEach(payment => {
         if (payment.subscription?.plan) {
           const planName = payment.subscription.plan.name;

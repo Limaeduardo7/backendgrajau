@@ -4,12 +4,13 @@ import PaymentService from '../services/PaymentService';
 import prisma from '../config/prisma';
 import mercadopago from '../config/payment';
 
-// Interface para estender o Request com informações do usuário
+// Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
     role: string;
+    email: string;
   };
 }
 

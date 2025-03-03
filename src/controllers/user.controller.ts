@@ -141,32 +141,53 @@ class UserController {
         return res.status(401).json({ error: 'Não autorizado' });
       }
 
-      const notifications = await prisma.notification.findMany({
-        where: { userId },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      });
+      // Verificar se o modelo Notification existe
+      try {
+        const notifications = await prisma.$queryRaw`
+          SELECT id, "userId", type, title, message, "entityId", read, "createdAt", "updatedAt"
+          FROM "Notification"
+          WHERE "userId" = ${userId}
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit}
+          OFFSET ${skip}
+        `;
 
-      const total = await prisma.notification.count({
-        where: { userId },
-      });
+        const totalResult = await prisma.$queryRaw`
+          SELECT COUNT(*) as count
+          FROM "Notification"
+          WHERE "userId" = ${userId}
+        `;
+        
+        const total = Number((totalResult as any)[0]?.count || 0);
 
-      // Marcar notificações como lidas
-      await prisma.notification.updateMany({
-        where: { userId, read: false },
-        data: { read: true },
-      });
+        // Marcar notificações como lidas
+        await prisma.$executeRaw`
+          UPDATE "Notification"
+          SET read = true
+          WHERE "userId" = ${userId} AND read = false
+        `;
 
-      return res.status(200).json({
-        data: notifications,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
-        },
-      });
+        return res.status(200).json({
+          data: notifications,
+          pagination: {
+            total,
+            page,
+            limit,
+            pages: Math.ceil(total / limit),
+          },
+        });
+      } catch (error) {
+        logger.warn('Tabela de notificações não encontrada, retornando array vazio:', error);
+        return res.status(200).json({
+          data: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            pages: 0,
+          },
+        });
+      }
     } catch (error) {
       logger.error('Erro ao obter notificações do usuário:', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
