@@ -947,10 +947,10 @@ class AdminController {
       // Buscar estatísticas dos blogs
       const totalBlogs = await prisma.blogPost.count();
       const publishedBlogs = await prisma.blogPost.count({
-        where: { status: 'PUBLISHED' as any }
+        where: { published: true }
       });
       const pendingBlogs = await prisma.blogPost.count({
-        where: { status: 'PENDING' as any }
+        where: { published: false }
       });
       
       // Buscar estatísticas dos jobs
