@@ -25,7 +25,9 @@
     "deploy:restart": "pm2 restart anunciar-grajau-api",
     "deploy:stop": "pm2 stop anunciar-grajau-api",
     "deploy:logs": "pm2 logs anunciar-grajau-api",
-    "deploy:status": "pm2 status anunciar-grajau-api"
+    "deploy:status": "pm2 status anunciar-grajau-api",
+    "create-admin": "ts-node src/scripts/createAdmin.ts",
+    "create-admin-with-clerk": "ts-node src/scripts/createAdminWithClerk.ts"
   },
   "keywords": [],
   "author": "",
