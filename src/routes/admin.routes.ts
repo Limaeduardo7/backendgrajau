@@ -551,4 +551,32 @@ router.get('/dashboard/applications', requireAuth, isAdmin, logAdminAction, admi
  */
 router.get('/dashboard', requireAuth, isAdmin, logAdminAction, adminController.getDashboard);
 
+/**
+ * @swagger
+ * /api/admin/dashboard/users:
+ *   get:
+ *     summary: Obtém estatísticas de usuários para o dashboard
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month, year, all]
+ *           default: month
+ *         description: Período para obter as estatísticas de usuários
+ *     responses:
+ *       200:
+ *         description: Estatísticas de usuários obtidas com sucesso
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Acesso proibido, permissão de administrador necessária
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/dashboard/users', requireAuth, isAdmin, logAdminAction, adminController.getUsersStats);
+
 export default router; 

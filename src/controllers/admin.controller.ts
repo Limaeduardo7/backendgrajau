@@ -794,6 +794,133 @@ class AdminController {
       });
     }
   };
+
+  getUsersStats = async (req: Request, res: Response) => {
+    try {
+      const period = (req.query.period as string) || 'month';
+      logger.info(`Obtendo estatísticas de usuários para o período: ${period}`);
+      
+      // Definir o intervalo de datas com base no período solicitado
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (period) {
+        case 'day':
+          startDate.setDate(now.getDate() - 1);
+          break;
+        case 'week':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+        case 'all':
+          startDate = new Date(0); // Data início Unix epoch
+          break;
+        default:
+          startDate.setMonth(now.getMonth() - 1); // Default para mês
+      }
+      
+      // Contagem total de usuários
+      const totalUsers = await prisma.user.count();
+      
+      // Usuários por papel (role)
+      const usersByRole = await prisma.$queryRaw`
+        SELECT role, COUNT(*) as count
+        FROM "User"
+        GROUP BY role
+        ORDER BY count DESC
+      `;
+      
+      // Usuários por status
+      const usersByStatus = await prisma.$queryRaw`
+        SELECT status, COUNT(*) as count
+        FROM "User"
+        GROUP BY status
+        ORDER BY count DESC
+      `;
+      
+      // Usuários criados no período
+      const newUsers = await prisma.user.count({
+        where: {
+          createdAt: {
+            gte: startDate,
+            lte: now
+          }
+        }
+      });
+      
+      // Usuários recentes (para listagem)
+      const recentUsers = await prisma.user.findMany({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true
+        }
+      });
+      
+      // Usuários por mês (para gráfico de crescimento)
+      const usersByMonth = await prisma.$queryRaw`
+        SELECT 
+          DATE_TRUNC('month', created_at) as month,
+          COUNT(*) as count
+        FROM 
+          "User"
+        GROUP BY 
+          DATE_TRUNC('month', created_at)
+        ORDER BY 
+          month ASC
+      `;
+      
+      // Estatísticas adicionais
+      const professionalCount = await prisma.user.count({
+        where: {
+          role: 'PROFESSIONAL' as any
+        }
+      });
+      
+      const businessCount = await prisma.user.count({
+        where: {
+          role: 'BUSINESS' as any
+        }
+      });
+      
+      res.json({
+        total: totalUsers,
+        byRole: usersByRole,
+        byStatus: usersByStatus,
+        newUsers,
+        recentUsers,
+        usersByMonth,
+        professionals: professionalCount,
+        businesses: businessCount,
+        period,
+        startDate,
+        endDate: now
+      });
+    } catch (error) {
+      logger.error('Erro ao obter estatísticas de usuários:', error);
+      res.status(500).json({
+        error: 'Erro ao obter estatísticas de usuários',
+        message: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    }
+  };
 }
 
 export default new AdminController(); 
