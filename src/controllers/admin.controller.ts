@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import AuditService from '../services/AuditService';
 import ApprovalService from '../services/ApprovalService';
+import { Status } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
@@ -956,10 +957,10 @@ class AdminController {
       // Buscar estatísticas dos jobs
       const totalJobs = await prisma.job.count();
       const activeJobs = await prisma.job.count({
-        where: { status: 'ACTIVE' as any }
+        where: { status: Status.APPROVED }
       });
-      const closedJobs = await prisma.job.count({
-        where: { status: 'CLOSED' as any }
+      const pendingJobs = await prisma.job.count({
+        where: { status: Status.PENDING }
       });
       
       // Buscar estatísticas das aplicações
@@ -979,7 +980,7 @@ class AdminController {
         jobs: {
           total: totalJobs,
           active: activeJobs,
-          closed: closedJobs
+          pending: pendingJobs
         },
         applications: {
           total: totalApplications
