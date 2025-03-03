@@ -9,10 +9,13 @@ import adminRoutes from './admin.routes';
 import paymentRoutes from './payment.routes';
 import reviewRoutes from './review.routes';
 import applicationRoutes from './application.routes';
+import authRoutes from './auth.routes';
 import { requireAuth, validateUser } from '../middlewares/auth.middleware';
 import auditRoutes from './audit.routes';
+import { AuthController } from '../controllers/auth.controller';
 
 const router = Router();
+const authController = new AuthController();
 
 // Rota de teste/saúde
 router.get('/health', (req: Request, res: Response) => {
@@ -23,6 +26,12 @@ router.get('/health', (req: Request, res: Response) => {
 router.get('/me', requireAuth, validateUser, (req: Request, res: Response) => {
   res.json({ user: req.user });
 });
+
+// Registrando as rotas de autenticação
+router.use('/auth', authRoutes);
+
+// Alias para a rota de registro (para compatibilidade)
+router.post('/register', authController.register);
 
 // Registrando as rotas de negócios
 router.use('/businesses', businessRoutes);
