@@ -957,10 +957,10 @@ class AdminController {
       // Buscar estatísticas dos jobs
       const totalJobs = await prisma.job.count();
       const activeJobs = await prisma.job.count({
-        where: { status: Status.APPROVED }
+        where: { status: 'APPROVED' }
       });
       const pendingJobs = await prisma.job.count({
-        where: { status: Status.PENDING }
+        where: { status: 'PENDING' }
       });
       
       // Buscar estatísticas das aplicações

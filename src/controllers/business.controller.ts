@@ -190,7 +190,13 @@ export class BusinessController {
         limit: Number(limit)
       });
       
-      res.json(result);
+      return res.json({
+        businesses: result.businesses || [],
+        total: result.total || 0,
+        page: result.page || 1,
+        pages: result.pages || 0,
+        limit: result.limit || 10
+      });
     } catch (error) {
       logger.error('Erro ao listar empresas pendentes:', error);
       if (error instanceof ApiError) {

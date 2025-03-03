@@ -205,7 +205,13 @@ export class ProfessionalController {
         limit
       });
       
-      return res.json(result);
+      return res.json({
+        professionals: result.professionals || [],
+        total: result.total || 0,
+        page: result.page || 1,
+        pages: result.pages || 0,
+        limit: result.limit || 10
+      });
     } catch (error) {
       logger.error('Erro ao buscar profissionais pendentes:', error);
       
