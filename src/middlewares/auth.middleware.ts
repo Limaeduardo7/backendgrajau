@@ -24,7 +24,8 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ error: 'Não autorizado' });
+      logger.warn('Tentativa de acesso sem token de autenticação');
+      return res.status(401).json({ error: 'Token não fornecido' });
     }
 
     // Verificar se é um token simples para o usuário administrador
@@ -69,22 +70,46 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       const session = await clerkClient.sessions.verifySession(token, token);
       
       if (!session) {
+        logger.warn('Sessão inválida');
         return res.status(401).json({ error: 'Sessão inválida' });
       }
 
       const clerkUser = await clerkClient.users.getUser(session.userId);
       
       if (!clerkUser) {
+        logger.warn(`Usuário Clerk não encontrado: ${session.userId}`);
         return res.status(401).json({ error: 'Usuário não encontrado' });
       }
 
+      // Obter email do usuário Clerk
+      const clerkEmail = clerkUser.emailAddresses[0]?.emailAddress;
+      
       // Buscar usuário no banco de dados local
-      const user = await prisma.user.findUnique({
+      let user = await prisma.user.findUnique({
         where: { clerkId: clerkUser.id },
       });
 
-      if (!user) {
-        return res.status(401).json({ error: 'Usuário não encontrado no banco de dados' });
+      // Se o usuário não existir no banco, criar um novo
+      if (!user && clerkEmail) {
+        logger.info(`Criando novo usuário para Clerk ID: ${clerkUser.id}`);
+        try {
+          user = await prisma.user.create({
+            data: {
+              clerkId: clerkUser.id,
+              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim(),
+              email: clerkEmail,
+              role: 'USER',
+              status: 'PENDING',
+            }
+          });
+          logger.info(`Novo usuário criado: ${user.id}`);
+        } catch (createError) {
+          logger.error(`Erro ao criar usuário: ${createError instanceof Error ? createError.message : 'Erro desconhecido'}`);
+          return res.status(500).json({ error: 'Erro ao criar usuário' });
+        }
+      } else if (!user) {
+        logger.warn(`Usuário Clerk sem email: ${clerkUser.id}`);
+        return res.status(401).json({ error: 'Usuário sem email válido' });
       }
 
       // Adicionar usuário ao objeto de requisição
@@ -97,7 +122,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
       next();
     } catch (error) {
-      logger.error('Erro ao verificar autenticação:', error);
+      logger.error(`Erro ao verificar autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      // Verificar se é um erro específico do Clerk
+      if (error instanceof Error && error.message.includes('Invalid session')) {
+        return res.status(401).json({ error: 'Sessão inválida' });
+      }
+      
       return res.status(401).json({ error: 'Não autorizado' });
     }
   } catch (error) {

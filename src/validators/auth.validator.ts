@@ -83,12 +83,23 @@ const forgotPasswordSchema = z.object({
 // Middleware para validação de login
 export const validateLogin = (req: Request, res: Response, next: NextFunction) => {
   try {
+    // Verificar se o token está presente
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ 
+        error: 'Token é obrigatório',
+        message: 'Token é obrigatório'
+      });
+    }
+
+    // Continuar com a validação do schema
     loginSchema.parse(req.body);
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: error.errors[0].message,
+        message: error.errors[0].message,
         errors: error.errors,
       });
     }

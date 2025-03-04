@@ -1,13 +1,19 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
-import { validateRegister } from '../validators/auth.validator';
+import { validateRegister, validateLogin } from '../validators/auth.validator';
+import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 const authController = new AuthController();
 
 // Definir rotas
 router.post('/register', validateRegister, authController.register);
-router.post('/login', authController.login);
+router.post('/login', validateLogin, authController.login);
 router.get('/status', authController.status);
+
+// Adicionar novas rotas
+router.post('/webhook', authController.webhook);
+router.get('/me', requireAuth, authController.getMe);
+router.patch('/profile', requireAuth, authController.updateProfile);
 
 export default router; 

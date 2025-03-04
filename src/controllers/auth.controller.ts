@@ -115,190 +115,89 @@ export class AuthController {
 
   /**
    * Realiza o login do usuário
-   * Este método autentica o usuário no Clerk e retorna um token
    */
   login = async (req: Request, res: Response) => {
     try {
-      // Extrair dados do corpo da requisição
-      const { email, password } = req.body;
+      const { token } = req.body;
 
-      logger.info(`Tentativa de login para o email: ${email || 'não fornecido'}`);
-
-      // Verificar se todos os campos obrigatórios foram fornecidos
-      if (!email || !password) {
-        logger.warn(`Tentativa de login com dados incompletos: ${JSON.stringify({
-          email: email ? 'fornecido' : 'não fornecido',
-          password: password ? 'fornecido' : 'não fornecido'
-        })}`);
-        
+      if (!token) {
         return res.status(400).json({ 
-          error: 'Dados incompletos', 
-          message: 'Email e senha são obrigatórios',
-          missingFields: {
-            email: !email,
-            password: !password
-          }
+          error: 'Token é obrigatório',
+          message: 'Token é obrigatório'
         });
       }
 
-      // Caso especial para o usuário administrador
-      if (email === 'anunciargrajau@gmail.com' && password === '172002Ws$#@') {
-        logger.info(`Login especial para o usuário administrador: ${email}`);
-        
-        // Verificar se o usuário existe no banco de dados local
-        let user = await prisma.user.findFirst({
-          where: { email },
-        });
-
-        if (!user) {
-          // Criar usuário no banco de dados local se não existir
-          try {
-            user = await prisma.user.create({
-              data: {
-                clerkId: 'admin_user', // ID temporário
-                name: 'Administrador Grajau',
-                email,
-                role: 'ADMIN',
-                status: 'APPROVED',
-              },
-            });
-            logger.info(`Usuário administrador criado no banco de dados: ${user.id}`);
-          } catch (dbError) {
-            logger.error(`Erro ao criar usuário administrador no banco de dados: ${dbError}`);
-            return res.status(500).json({ 
-              error: 'Erro interno do servidor', 
-              message: 'Não foi possível completar o login. Tente novamente mais tarde.' 
-            });
-          }
-        } else if (user.role !== 'ADMIN') {
-          // Garantir que o usuário seja admin
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { role: 'ADMIN', status: 'APPROVED' }
-          });
-          logger.info(`Usuário atualizado para ADMIN: ${user.id}`);
-        }
-
-        // Criar um token simples (sem Clerk)
-        const token = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
-
-        return res.status(200).json({
-          message: 'Login realizado com sucesso',
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            status: user.status,
-          },
-        });
-      }
-
+      // Verificar o token com o Clerk
+      let clerkSession;
       try {
-        // Verificar se o usuário existe no Clerk
-        const users = await clerkClient.users.getUserList({
-          emailAddress: [email],
-          limit: 1,
-        });
-
-        if (users.length === 0) {
-          logger.warn(`Tentativa de login com email não cadastrado: ${email}`);
-          return res.status(401).json({ 
-            error: 'Credenciais inválidas', 
-            message: 'Email ou senha incorretos' 
-          });
-        }
-
-        // Tentar criar um token de sessão
-        try {
-          // Como o Clerk não tem um método direto para verificar senha via API,
-          // vamos tentar criar um token e confiar na verificação do Clerk
-          const signInToken = await clerkClient.signInTokens.createSignInToken({
-            userId: users[0].id,
-            expiresInSeconds: 60 * 60 * 24 * 7, // 7 dias
-          });
-
-          // Verificar se o usuário existe no banco de dados local
-          let user = await prisma.user.findFirst({
-            where: { clerkId: users[0].id },
-          });
-
-          if (!user) {
-            // Criar usuário no banco de dados local se não existir
-            try {
-              user = await prisma.user.create({
-                data: {
-                  clerkId: users[0].id,
-                  name: `${users[0].firstName} ${users[0].lastName}`,
-                  email: email,
-                  role: 'USER',
-                  status: 'APPROVED', // Definir como APPROVED já que o usuário existe no Clerk
-                },
-              });
-
-              logger.info(`Usuário criado no banco de dados após login: ${user.id}`);
-            } catch (dbError) {
-              logger.error(`Erro ao criar usuário no banco de dados após login: ${dbError}`);
-              // Continuar mesmo se falhar, pois o token já foi criado
-            }
-          }
-
-          if (user) {
-            logger.info(`Login realizado com sucesso: ${user.id}`);
-
-            return res.status(200).json({
-              message: 'Login realizado com sucesso',
-              token: signInToken.token,
-              user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                status: user.status,
-              },
-            });
-          } else {
-            // Caso raro onde não conseguimos criar o usuário no banco local
-            logger.info(`Login realizado com sucesso (apenas no Clerk): ${users[0].id}`);
-            
-            return res.status(200).json({
-              message: 'Login realizado com sucesso',
-              token: signInToken.token,
-              user: {
-                clerkId: users[0].id,
-                name: `${users[0].firstName} ${users[0].lastName}`,
-                email: email,
-                role: 'USER',
-                status: 'PENDING',
-              },
-              warning: 'Usuário não encontrado no banco de dados local'
-            });
-          }
-        } catch (authError) {
-          logger.error(`Erro na autenticação: ${authError}`);
-          return res.status(401).json({ 
-            error: 'Credenciais inválidas', 
-            message: 'Email ou senha incorretos' 
-          });
-        }
+        clerkSession = await clerkClient.sessions.verifySession(token, token);
       } catch (error) {
-        logger.error(`Erro ao buscar usuário no Clerk: ${error}`);
-        return res.status(500).json({ 
-          error: 'Erro de autenticação', 
-          message: 'Não foi possível autenticar o usuário' 
+        logger.error(`Erro ao verificar token: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+        return res.status(401).json({ 
+          error: 'Sessão inválida',
+          message: 'O token fornecido é inválido ou expirou'
         });
       }
-    } catch (error) {
-      logger.error('Erro ao realizar login:', error);
-      
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+
+      if (!clerkSession) {
+        return res.status(401).json({ 
+          error: 'Sessão inválida',
+          message: 'Não foi possível verificar a sessão'
+        });
       }
-      
+
+      // Obter o usuário do Clerk
+      const clerkUser = await clerkClient.users.getUser(clerkSession.userId);
+      if (!clerkUser) {
+        return res.status(401).json({ 
+          error: 'Usuário não encontrado',
+          message: 'Não foi possível encontrar o usuário associado à sessão'
+        });
+      }
+
+      const email = clerkUser.emailAddresses[0]?.emailAddress;
+      if (!email) {
+        return res.status(400).json({ 
+          error: 'Email não encontrado',
+          message: 'O usuário não possui um email válido'
+        });
+      }
+
+      // Buscar o usuário no banco de dados local
+      let user = await prisma.user.findFirst({
+        where: { clerkId: clerkUser.id }
+      });
+
+      // Se o usuário não existir, criar um novo
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            clerkId: clerkUser.id,
+            name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim(),
+            email,
+            role: 'USER',
+            status: 'PENDING',
+          }
+        });
+        logger.info(`Novo usuário criado durante login: ${user.id}`);
+      }
+
+      // Retornar os dados do usuário
+      return res.status(200).json({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+        },
+        token, // Retornar o mesmo token para manter a sessão
+      });
+    } catch (error) {
+      logger.error(`Erro ao fazer login: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       return res.status(500).json({ 
-        error: 'Erro interno do servidor', 
-        message: 'Não foi possível completar o login. Tente novamente mais tarde.' 
+        error: 'Erro ao processar login',
+        message: 'Ocorreu um erro ao processar a solicitação de login'
       });
     }
   };
@@ -383,4 +282,244 @@ export class AuthController {
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   };
+
+  /**
+   * Endpoint para receber e processar webhooks do Clerk
+   */
+  webhook = async (req: Request, res: Response) => {
+    try {
+      // Verificar a assinatura do webhook
+      const signature = req.headers['clerk-signature'] as string;
+      if (!signature) {
+        logger.warn('Tentativa de webhook sem assinatura');
+        return res.status(401).json({ error: 'Assinatura não fornecida' });
+      }
+
+      // Verificar o tipo de evento
+      const { type, data } = req.body;
+      logger.info(`Webhook recebido: ${type}`);
+
+      // Processar o evento
+      switch (type) {
+        case 'user.created':
+          await this.processUserCreated(data);
+          break;
+        case 'user.updated':
+          await this.processUserUpdated(data);
+          break;
+        case 'user.deleted':
+          await this.processUserDeleted(data);
+          break;
+        default:
+          logger.info(`Tipo de evento não processado: ${type}`);
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      logger.error(`Erro ao processar webhook: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return res.status(500).json({ error: 'Erro ao processar webhook' });
+    }
+  };
+
+  /**
+   * Obter dados do usuário autenticado
+   */
+  getMe = async (req: Request, res: Response) => {
+    try {
+      // O middleware requireAuth já adicionou o usuário ao objeto de requisição
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Não autorizado' });
+      }
+
+      // Buscar dados completos do usuário
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          phone: true,
+          document: true,
+          documentType: true,
+          // Incluir outras informações relevantes do usuário
+        }
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      return res.status(200).json({ user });
+    } catch (error) {
+      logger.error(`Erro ao obter dados do usuário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return res.status(500).json({ error: 'Erro ao obter dados do usuário' });
+    }
+  };
+
+  /**
+   * Atualizar perfil do usuário
+   */
+  updateProfile = async (req: Request, res: Response) => {
+    try {
+      // O middleware requireAuth já adicionou o usuário ao objeto de requisição
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Não autorizado' });
+      }
+
+      const { name, phone, document, documentType } = req.body;
+
+      // Validar dados
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (document) updateData.document = document;
+      if (documentType) updateData.documentType = documentType;
+
+      // Atualizar usuário no banco de dados
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user.id },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          phone: true,
+          document: true,
+          documentType: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      });
+
+      return res.status(200).json({ 
+        message: 'Perfil atualizado com sucesso',
+        user: updatedUser 
+      });
+    } catch (error) {
+      logger.error(`Erro ao atualizar perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      // Verificar se é um erro de unicidade (e.g., documento já cadastrado)
+      if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+        return res.status(409).json({ error: 'Já existe um usuário com este documento' });
+      }
+      
+      return res.status(500).json({ error: 'Erro ao atualizar perfil' });
+    }
+  };
+
+  // Métodos auxiliares para processamento de webhooks
+  private async processUserCreated(data: any) {
+    try {
+      const { id, email_addresses, first_name, last_name } = data;
+      const email = email_addresses && email_addresses[0] ? email_addresses[0].email_address : null;
+      
+      if (!id || !email) {
+        logger.warn('Dados incompletos no webhook user.created');
+        return;
+      }
+      
+      // Verificar se o usuário já existe
+      const existingUser = await prisma.user.findUnique({
+        where: { clerkId: id }
+      });
+      
+      if (existingUser) {
+        logger.info(`Usuário já existe no banco: ${id}`);
+        return;
+      }
+      
+      // Criar usuário no banco de dados
+      await prisma.user.create({
+        data: {
+          clerkId: id,
+          name: `${first_name || ''} ${last_name || ''}`.trim(),
+          email,
+          role: 'USER',
+          status: 'PENDING',
+        }
+      });
+      
+      logger.info(`Usuário criado via webhook: ${id}`);
+    } catch (error) {
+      logger.error(`Erro ao processar user.created: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
+  }
+
+  private async processUserUpdated(data: any) {
+    try {
+      const { id, email_addresses, first_name, last_name } = data;
+      const email = email_addresses && email_addresses[0] ? email_addresses[0].email_address : null;
+      
+      if (!id) {
+        logger.warn('ID não fornecido no webhook user.updated');
+        return;
+      }
+      
+      // Buscar usuário
+      const existingUser = await prisma.user.findUnique({
+        where: { clerkId: id }
+      });
+      
+      if (!existingUser) {
+        logger.warn(`Usuário não encontrado para atualização: ${id}`);
+        return;
+      }
+      
+      // Preparar dados para atualização
+      const updateData: any = {};
+      if (first_name || last_name) {
+        updateData.name = `${first_name || ''} ${last_name || ''}`.trim();
+      }
+      if (email) {
+        updateData.email = email;
+      }
+      
+      // Atualizar usuário
+      await prisma.user.update({
+        where: { clerkId: id },
+        data: updateData
+      });
+      
+      logger.info(`Usuário atualizado via webhook: ${id}`);
+    } catch (error) {
+      logger.error(`Erro ao processar user.updated: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
+  }
+
+  private async processUserDeleted(data: any) {
+    try {
+      const { id } = data;
+      
+      if (!id) {
+        logger.warn('ID não fornecido no webhook user.deleted');
+        return;
+      }
+      
+      // Buscar usuário
+      const existingUser = await prisma.user.findUnique({
+        where: { clerkId: id }
+      });
+      
+      if (!existingUser) {
+        logger.warn(`Usuário não encontrado para exclusão: ${id}`);
+        return;
+      }
+      
+      // Aqui você pode decidir se deseja excluir o usuário ou apenas marcar como inativo
+      // Exemplo: Exclusão
+      await prisma.user.delete({
+        where: { clerkId: id }
+      });
+      
+      logger.info(`Usuário excluído via webhook: ${id}`);
+    } catch (error) {
+      logger.error(`Erro ao processar user.deleted: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
+  }
 } 
