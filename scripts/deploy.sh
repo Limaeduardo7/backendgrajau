@@ -3,7 +3,6 @@
 # Script de deploy para o backend do Anunciar Grajaú
 # Uso: ./deploy.sh [ambiente]
 # Exemplo: ./deploy.sh production
-# Para pular testes: SKIP_TESTS=true ./deploy.sh
 
 # Cores para output
 RED='\033[0;31m'
@@ -58,14 +57,10 @@ if [ ! -f ".env" ]; then
 fi
 
 # Executar verificação pré-deploy
-if [ "$SKIP_TESTS" = "true" ]; then
-  warning "🚧 Pulando verificação pré-deploy e testes conforme configurado"
-else
-  log "Executando verificação pré-deploy..."
-  if ! node scripts/pre-deploy-check.js; then
-    error "Verificação pré-deploy falhou. Corrija os erros antes de continuar."
-    exit 1
-  fi
+log "Executando verificação pré-deploy..."
+if ! node scripts/pre-deploy-check.js; then
+  error "Verificação pré-deploy falhou. Corrija os erros antes de continuar."
+  exit 1
 fi
 
 # Fazer backup do banco de dados
