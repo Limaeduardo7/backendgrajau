@@ -5,7 +5,7 @@ export interface AuthRequest extends Request {
     id: string;
     clerkId: string;
     role: string;
-    email?: string; // Agora opcional para compatibilidade com Request
+    email?: string; // Campo opcional para compatibilidade com a interface Request
   };
 }
 
