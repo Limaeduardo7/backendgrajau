@@ -11,10 +11,14 @@ const loginSchema = z.object({
 
 // Esquema para validação de registro
 const registerSchema = z.object({
-  name: z.string({
+  firstName: z.string({
     required_error: 'Nome é obrigatório',
     invalid_type_error: 'Nome deve ser uma string',
-  }).min(3, 'Nome deve ter pelo menos 3 caracteres'),
+  }).min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  lastName: z.string({
+    required_error: 'Sobrenome é obrigatório',
+    invalid_type_error: 'Sobrenome deve ser uma string',
+  }).min(2, 'Sobrenome deve ter pelo menos 2 caracteres'),
   email: z.string({
     required_error: 'Email é obrigatório',
     invalid_type_error: 'Email deve ser uma string',
@@ -33,7 +37,7 @@ const registerSchema = z.object({
   }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Senhas não conferem',
-  path: ['confirmPassword'],
+  path: ['confirmPassword']
 });
 
 // Esquema para validação de redefinição de senha
@@ -90,9 +94,25 @@ export const validateRegister = (req: Request, res: Response, next: NextFunction
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
+      // Verificar se o erro é por campos faltando
+      const missingFields = error.errors
+        .filter(err => err.code === 'invalid_type' && err.received === 'undefined')
+        .map(err => err.path[0]);
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({
+          error: 'Erro de validação',
+          message: 'missing data',
+          details: `Campos obrigatórios não fornecidos: ${missingFields.join(', ')}`,
+          missingFields
+        });
+      }
+
+      // Outros tipos de erros de validação
       return res.status(400).json({
-        error: error.errors[0].message,
-        errors: error.errors,
+        error: 'Erro de validação',
+        message: error.errors[0].message,
+        details: error.errors
       });
     }
     return res.status(500).json({ error: 'Erro interno do servidor' });

@@ -3,6 +3,8 @@ import { clerkClient } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import logger from '../config/logger';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 export class AuthController {
   /**
@@ -10,52 +12,50 @@ export class AuthController {
    * Este método cria um usuário no Clerk e depois no banco de dados local
    */
   register = async (req: Request, res: Response) => {
+    const { firstName, lastName, email, password } = req.body;
+
+    logger.info(`Tentativa de registro com email: ${email}`);
+
+    // Verificar se todos os campos necessários foram fornecidos
+    const camposFaltantes = [];
+    if (!firstName) camposFaltantes.push('firstName');
+    if (!lastName) camposFaltantes.push('lastName');
+    if (!email) camposFaltantes.push('email');
+    if (!password) camposFaltantes.push('password');
+
+    if (camposFaltantes.length > 0) {
+      logger.warn(`Tentativa de registro faltando dados: ${camposFaltantes.join(', ')}`);
+      return res.status(400).json({ 
+        error: 'Erro de validação', 
+        message: 'missing data',
+        details: `Campos obrigatórios não fornecidos: ${camposFaltantes.join(', ')}`,
+        missingFields: camposFaltantes
+      });
+    }
+
+    // Verificar se existem valores vazios após trim
+    const camposVazios = [];
+    if (firstName.trim() === '') camposVazios.push('firstName');
+    if (lastName.trim() === '') camposVazios.push('lastName');
+    if (email.trim() === '') camposVazios.push('email');
+    if (password.trim() === '') camposVazios.push('password');
+
+    if (camposVazios.length > 0) {
+      logger.warn(`Tentativa de registro com campos vazios: ${camposVazios.join(', ')}`);
+      return res.status(400).json({ 
+        error: 'Erro de validação', 
+        message: 'empty fields',
+        details: `Campos não podem estar vazios: ${camposVazios.join(', ')}`,
+        emptyFields: camposVazios
+      });
+    }
+
     try {
-      // Extrair dados do corpo da requisição
-      const { firstName, lastName, email, password } = req.body;
-
-      logger.info(`Tentativa de registro para o email: ${email || 'não fornecido'}`);
-
-      // Verificar se todos os campos obrigatórios foram fornecidos
-      if (!firstName || !lastName || !email || !password) {
-        logger.warn(`Tentativa de registro com dados incompletos: ${JSON.stringify({
-          firstName: firstName ? 'fornecido' : 'não fornecido',
-          lastName: lastName ? 'fornecido' : 'não fornecido',
-          email: email ? 'fornecido' : 'não fornecido',
-          password: password ? 'fornecido' : 'não fornecido'
-        })}`);
-        
-        return res.status(400).json({ 
-          error: 'Dados incompletos', 
-          message: 'Nome, sobrenome, email e senha são obrigatórios',
-          missingFields: {
-            firstName: !firstName,
-            lastName: !lastName,
-            email: !email,
-            password: !password
-          }
-        });
-      }
-
-      // Verificar se o email já existe no Clerk
-      try {
-        const existingUsers = await clerkClient.users.getUserList({
-          emailAddress: [email],
-        });
-
-        if (existingUsers.length > 0) {
-          logger.warn(`Tentativa de registro com email já existente: ${email}`);
-          return res.status(400).json({ 
-            error: 'Email já cadastrado', 
-            message: 'Este email já está sendo usado por outro usuário' 
-          });
-        }
-      } catch (error) {
-        logger.error(`Erro ao verificar email no Clerk: ${error}`);
-        return res.status(500).json({ 
-          error: 'Erro ao verificar email', 
-          message: 'Não foi possível verificar se o email já está cadastrado' 
-        });
+      // Verificar se o usuário já existe
+      const existingUser = await prisma.user.findFirst({ where: { email } });
+      if (existingUser) {
+        logger.warn(`Tentativa de registro com email já existente: ${email}`);
+        return res.status(409).json({ error: 'Email já está em uso' });
       }
 
       // Criar usuário no Clerk
@@ -88,56 +88,28 @@ export class AuthController {
       }
 
       // Criar usuário no banco de dados local
-      try {
-        const user = await prisma.user.create({
-          data: {
-            clerkId: clerkUser.id,
-            name: `${firstName} ${lastName}`,
-            email,
-            role: 'USER',
-            status: 'PENDING',
-          },
-        });
-
-        logger.info(`Usuário criado no banco de dados: ${user.id}`);
-
-        return res.status(201).json({
-          message: 'Usuário registrado com sucesso',
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            status: user.status,
-          },
-        });
-      } catch (error) {
-        logger.error(`Erro ao criar usuário no banco de dados: ${error}`);
-        
-        // Tentar remover o usuário do Clerk para evitar inconsistências
-        try {
-          await clerkClient.users.deleteUser(clerkUser.id);
-          logger.info(`Usuário removido do Clerk após falha no banco de dados: ${clerkUser.id}`);
-        } catch (deleteError) {
-          logger.error(`Erro ao remover usuário do Clerk: ${deleteError}`);
-        }
-        
-        return res.status(500).json({ 
-          error: 'Erro ao criar usuário no banco de dados', 
-          message: 'Não foi possível completar o registro. Tente novamente mais tarde.' 
-        });
-      }
-    } catch (error) {
-      logger.error('Erro ao registrar usuário:', error);
-      
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
-      
-      return res.status(500).json({ 
-        error: 'Erro interno do servidor', 
-        message: 'Não foi possível completar o registro. Tente novamente mais tarde.' 
+      const user = await prisma.user.create({
+        data: {
+          clerkId: clerkUser.id,
+          name: `${firstName} ${lastName}`,
+          email,
+          role: 'USER',
+          status: 'PENDING',
+        },
       });
+
+      logger.info(`Usuário registrado com sucesso: ${email}`);
+      return res.status(201).json({
+        message: 'Usuário registrado com sucesso',
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+      });
+    } catch (error) {
+      logger.error(`Erro ao registrar usuário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return res.status(500).json({ error: 'Erro ao registrar usuário' });
     }
   };
 
