@@ -10,7 +10,7 @@ interface AuthRequest extends Request {
     id: string;
     clerkId: string;
     role: string;
-    email: string;
+    email?: string;
   };
 }
 
