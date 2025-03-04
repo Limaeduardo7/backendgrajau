@@ -30,14 +30,25 @@ export class BlogController {
         tag: tag as string,
         featured: featured === 'true',
       });
-      res.json(posts);
+      
+      // Garantir que sempre retornamos um objeto válido com posts como array
+      return res.json({
+        posts: posts.posts || [],
+        total: posts.total || 0,
+        pages: posts.pages || 0,
+        currentPage: posts.currentPage || Number(page)
+      });
     } catch (error) {
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        console.error('Erro ao listar posts:', error);
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
+      console.error('Erro ao listar posts:', error);
+      
+      // Em caso de erro, retornar uma resposta segura com array vazio
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        posts: [],
+        total: 0,
+        pages: 0,
+        currentPage: Number(req.query.page || 1)
+      });
     }
   };
 
@@ -183,28 +194,22 @@ export class BlogController {
   listCategories = async (req: Request, res: Response) => {
     try {
       const categories = await this.blogService.listCategories();
-      res.json(categories);
+      return res.json(categories || []);
     } catch (error) {
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        console.error('Erro ao listar categorias:', error);
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
+      console.error('Erro ao listar categorias:', error);
+      // Em caso de erro, retornar um array vazio
+      return res.status(500).json([]);
     }
   };
 
   listTags = async (req: Request, res: Response) => {
     try {
       const tags = await this.blogService.listTags();
-      res.json(tags);
+      return res.json(tags || []);
     } catch (error) {
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        console.error('Erro ao listar tags:', error);
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
+      console.error('Erro ao listar tags:', error);
+      // Em caso de erro, retornar um array vazio
+      return res.status(500).json([]);
     }
   };
 
@@ -287,13 +292,11 @@ export class BlogController {
     try {
       const { postId } = req.params;
       const comments = await this.blogService.getCommentsByPostId(postId);
-      res.json(comments);
+      return res.json(comments || []);
     } catch (error) {
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
+      console.error('Erro ao buscar comentários:', error);
+      // Em caso de erro, retornar um array vazio
+      return res.status(500).json([]);
     }
   };
 
