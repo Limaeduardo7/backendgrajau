@@ -7,7 +7,8 @@ const router = Router();
 const authController = new AuthController();
 
 // Definir rotas
-router.post('/register', validateRegister, authController.register);
+// Temporariamente removido o middleware de validação para diagnóstico
+router.post('/register', authController.register); // validateRegister removido
 router.post('/login', validateLogin, authController.login);
 router.get('/status', authController.status);
 

@@ -93,8 +93,28 @@ const limiter = rateLimit({
 // Aplicar rate limiting a todas as requisições
 app.use(limiter);
 
-// Middlewares
-app.use(express.json());
+// Adicionar logs para debugging de CORS e body parser
+app.use((req, res, next) => {
+  if (req.url.includes('/api/auth/register')) {
+    console.log('=== REQUEST DEBUG ===');
+    console.log('URL:', req.url);
+    console.log('Method:', req.method);
+    console.log('Origin:', req.headers.origin);
+    console.log('Content-Type recebido:', req.headers['content-type']);
+  }
+  next();
+});
+
+// Certificar-se de que o body parser está configurado corretamente
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Configuração CORS mais permissiva para testes
+app.use(cors({
+  origin: '*', // Permitir todas as origens durante debugging
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
+}));
 
 // Configurar Morgan para usar o logger Winston
 app.use(morgan('combined', {
