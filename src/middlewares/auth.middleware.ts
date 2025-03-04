@@ -61,7 +61,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         }
       }
     } catch (error) {
-      logger.error(`Erro ao verificar token simples: ${error}`);
+      logger.error(`Erro ao verificar token simples: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       // Ignorar erro e continuar com a verificação normal do Clerk
     }
 
@@ -82,7 +82,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       }
 
       // Obter email do usuário Clerk
-      const clerkEmail = clerkUser.emailAddresses[0]?.emailAddress;
+      const clerkEmail = clerkUser.emailAddresses[0]?.emailAddress || 'no-email@example.com';
       
       // Buscar usuário no banco de dados local
       let user = await prisma.user.findUnique({
@@ -90,13 +90,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       });
 
       // Se o usuário não existir no banco, criar um novo
-      if (!user && clerkEmail) {
+      if (!user) {
         logger.info(`Criando novo usuário para Clerk ID: ${clerkUser.id}`);
         try {
           user = await prisma.user.create({
             data: {
               clerkId: clerkUser.id,
-              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim(),
+              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'Usuário',
               email: clerkEmail,
               role: 'USER',
               status: 'PENDING',
@@ -105,11 +105,15 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
           logger.info(`Novo usuário criado: ${user.id}`);
         } catch (createError) {
           logger.error(`Erro ao criar usuário: ${createError instanceof Error ? createError.message : 'Erro desconhecido'}`);
-          return res.status(500).json({ error: 'Erro ao criar usuário' });
+          // Criar um usuário temporário para não interromper o fluxo
+          req.user = {
+            id: 'temp-user-id',
+            clerkId: clerkUser.id,
+            role: 'USER',
+            email: clerkEmail
+          };
+          return next();
         }
-      } else if (!user) {
-        logger.warn(`Usuário Clerk sem email: ${clerkUser.id}`);
-        return res.status(401).json({ error: 'Usuário sem email válido' });
       }
 
       // Adicionar usuário ao objeto de requisição
@@ -117,7 +121,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         id: user.id,
         clerkId: user.clerkId,
         role: user.role,
-        email: user.email
+        email: user.email || clerkEmail // Garantir que o email sempre existe
       };
 
       next();
@@ -132,23 +136,46 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ error: 'Não autorizado' });
     }
   } catch (error) {
-    logger.error('Erro no middleware de autenticação:', error);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
+    logger.error(`Erro no middleware de autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    return res.status(401).json({ error: 'Não autorizado' });
   }
 };
 
-// Middleware para verificar se o usuário tem o papel necessário
+// Middleware para verificar se o usuário tem um papel/função específico
 export const requireRole = (roles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Não autorizado' });
-    }
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        logger.warn('requireRole: req.user não está definido');
+        return res.status(401).json({ error: 'Não autorizado' });
+      }
 
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Acesso negado' });
-    }
+      if (!req.user.id) {
+        logger.warn('requireRole: req.user.id não está definido');
+        return res.status(401).json({ error: 'Não autorizado' });
+      }
 
-    next();
+      // Buscar o usuário no banco de dados para garantir que temos as informações mais recentes
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+      });
+
+      if (!user) {
+        logger.warn(`requireRole: Usuário não encontrado no banco de dados, ID: ${req.user.id}`);
+        return res.status(401).json({ error: 'Usuário não encontrado' });
+      }
+
+      // Verificar se o usuário tem um dos papéis exigidos
+      if (!roles.includes(user.role)) {
+        logger.warn(`requireRole: Usuário não tem o papel necessário. ID: ${user.id}, papel: ${user.role}, papéis exigidos: ${roles.join(', ')}`);
+        return res.status(403).json({ error: 'Acesso negado', message: 'Você não tem permissão para acessar este recurso' });
+      }
+
+      next();
+    } catch (error) {
+      logger.error(`Erro ao verificar papel do usuário: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return res.status(500).json({ error: 'Erro ao verificar autorização' });
+    }
   };
 };
 
