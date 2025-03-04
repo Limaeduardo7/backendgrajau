@@ -12,13 +12,6 @@ export class AuthController {
    * Este método cria um usuário no Clerk e depois no banco de dados local
    */
   register = async (req: Request, res: Response) => {
-    // Adicionar logs detalhados para diagnóstico
-    console.log('==== DEBUG REGISTRO ====');
-    console.log('Headers:', JSON.stringify(req.headers));
-    console.log('Body completo:', JSON.stringify(req.body));
-    console.log('Content-Type:', req.headers['content-type']);
-    console.log('==== FIM DEBUG ====');
-    
     const { firstName, lastName, email, password } = req.body;
 
     logger.info(`Tentativa de registro com email: ${email}`);
