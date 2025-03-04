@@ -34,7 +34,16 @@ const registerSchema = z.object({
   confirmPassword: z.string({
     required_error: 'Confirmação de senha é obrigatória',
     invalid_type_error: 'Confirmação de senha deve ser uma string',
-  }),
+  }).optional(),
+}).transform(data => {
+  // Se confirmPassword não estiver definido, use o valor de password
+  if (!data.confirmPassword) {
+    return {
+      ...data,
+      confirmPassword: data.password
+    };
+  }
+  return data;
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Senhas não conferem',
   path: ['confirmPassword']
