@@ -2,6 +2,7 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import EmailService from './EmailService';
 import AuditService from './AuditService';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 interface ApprovalResult {
   success: boolean;
@@ -20,7 +21,7 @@ class ApprovalService {
       // Verificar se a empresa existe
       const business = await prisma.business.findUnique({
         where: { id: businessId },
-        include: { user: true }
+        include: { user: true } as Prisma.BusinessInclude
       });
 
       if (!business) {
@@ -151,7 +152,7 @@ class ApprovalService {
       // Verificar se o profissional existe
       const professional = await prisma.professional.findUnique({
         where: { id: professionalId },
-        include: { user: true }
+        include: { user: true } as Prisma.ProfessionalInclude
       });
 
       if (!professional) {
@@ -171,7 +172,7 @@ class ApprovalService {
       const updatedProfessional = await prisma.professional.update({
         where: { id: professionalId },
         data: { status: 'APPROVED' },
-        include: { user: true }
+        include: { user: true } as Prisma.ProfessionalInclude
       });
 
       // Registrar ação de auditoria
@@ -212,7 +213,7 @@ class ApprovalService {
       // Verificar se o profissional existe
       const professional = await prisma.professional.findUnique({
         where: { id: professionalId },
-        include: { user: true }
+        include: { user: true } as Prisma.ProfessionalInclude
       });
 
       if (!professional) {
@@ -232,7 +233,7 @@ class ApprovalService {
       const updatedProfessional = await prisma.professional.update({
         where: { id: professionalId },
         data: { status: 'REJECTED' },
-        include: { user: true }
+        include: { user: true } as Prisma.ProfessionalInclude
       });
 
       // Registrar ação de auditoria
@@ -282,13 +283,10 @@ class ApprovalService {
       // Verificar se a vaga existe
       const job = await prisma.job.findUnique({
         where: { id: jobId },
-        include: { 
-          business: {
-            include: {
-              user: true
-            }
-          }
-        }
+        include: {
+          business: true,
+          user: true
+        } as Prisma.JobInclude
       });
 
       if (!job) {
@@ -308,13 +306,10 @@ class ApprovalService {
       const updatedJob = await prisma.job.update({
         where: { id: jobId },
         data: { status: 'APPROVED' },
-        include: { 
-          business: {
-            include: {
-              user: true
-            }
-          }
-        }
+        include: {
+          business: true,
+          user: true
+        } as Prisma.JobInclude
       });
 
       // Registrar ação de auditoria
@@ -327,13 +322,15 @@ class ApprovalService {
       });
 
       // Enviar email de notificação
+      const jobWithRelations = job as any;
+      
       await EmailService.sendEmail({
-        to: job.business.user.email,
+        to: jobWithRelations.business.user.email,
         subject: 'Sua vaga foi aprovada!',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #4a6da7;">Vaga Aprovada!</h1>
-            <p>Olá, ${job.business.user.name}!</p>
+            <p>Olá, ${jobWithRelations.business.user.name}!</p>
             <p>Temos o prazer de informar que sua vaga <strong>${job.title}</strong> foi aprovada no Anunciar Grajaú.</p>
             <p>A partir de agora, sua vaga está visível para todos os profissionais da plataforma.</p>
             <p>Você receberá notificações quando houver candidaturas.</p>
@@ -364,13 +361,10 @@ class ApprovalService {
       // Verificar se a vaga existe
       const job = await prisma.job.findUnique({
         where: { id: jobId },
-        include: { 
-          business: {
-            include: {
-              user: true
-            }
-          }
-        }
+        include: {
+          business: true,
+          user: true
+        } as Prisma.JobInclude
       });
 
       if (!job) {
@@ -390,13 +384,10 @@ class ApprovalService {
       const updatedJob = await prisma.job.update({
         where: { id: jobId },
         data: { status: 'REJECTED' },
-        include: { 
-          business: {
-            include: {
-              user: true
-            }
-          }
-        }
+        include: {
+          business: true,
+          user: true
+        } as Prisma.JobInclude
       });
 
       // Registrar ação de auditoria
@@ -409,13 +400,15 @@ class ApprovalService {
       });
 
       // Enviar email de notificação
+      const jobWithRelations = job as any;
+      
       await EmailService.sendEmail({
-        to: job.business.user.email,
+        to: jobWithRelations.business.user.email,
         subject: 'Sua vaga não foi aprovada',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #4a6da7;">Vaga Não Aprovada</h1>
-            <p>Olá, ${job.business.user.name}!</p>
+            <p>Olá, ${jobWithRelations.business.user.name}!</p>
             <p>Infelizmente, sua vaga <strong>${job.title}</strong> não foi aprovada no Anunciar Grajaú.</p>
             <p><strong>Motivo:</strong> ${reason}</p>
             <p>Você pode editar as informações da vaga e solicitar uma nova revisão.</p>
@@ -449,7 +442,7 @@ class ApprovalService {
       if (!type || type === 'business') {
         businesses = await prisma.business.findMany({
           where: { status: 'PENDING' },
-          include: { user: true },
+          include: { user: true } as Prisma.BusinessInclude,
           orderBy: { createdAt: 'desc' }
         });
       }
@@ -457,7 +450,7 @@ class ApprovalService {
       if (!type || type === 'professional') {
         professionals = await prisma.professional.findMany({
           where: { status: 'PENDING' },
-          include: { user: true },
+          include: { user: true } as Prisma.ProfessionalInclude,
           orderBy: { createdAt: 'desc' }
         });
       }
@@ -465,13 +458,10 @@ class ApprovalService {
       if (!type || type === 'job') {
         jobs = await prisma.job.findMany({
           where: { status: 'PENDING' },
-          include: { 
-            business: {
-              include: {
-                user: true
-              }
-            }
-          },
+          include: {
+            business: true,
+            user: true
+          } as Prisma.JobInclude,
           orderBy: { createdAt: 'desc' }
         });
       }

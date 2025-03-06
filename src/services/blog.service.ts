@@ -1,4 +1,4 @@
-import { BlogPost, Category, Comment, Prisma } from '@prisma/client';
+import { BlogPost, Category, Comment, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { unlinkSync } from 'fs';
@@ -58,7 +58,7 @@ export class BlogService {
                   },
                 },
                 category: true,
-              },
+              } as Prisma.BlogPostInclude,
               skip,
               take: limit,
               orderBy: { publishedAt: 'desc' },

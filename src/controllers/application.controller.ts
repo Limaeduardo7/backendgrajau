@@ -3,6 +3,7 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import logger from '../config/logger';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 class ApplicationController {
   applyToJob = async (req: Request, res: Response) => {
@@ -103,17 +104,10 @@ class ApplicationController {
               id: true,
               name: true,
               email: true,
-              professional: {
-                select: {
-                  occupation: true,
-                  specialties: true,
-                  experience: true,
-                  portfolio: true
-                }
-              }
+              phone: true
             }
           }
-        },
+        } as Prisma.ApplicationInclude,
         orderBy: { createdAt: 'desc' }
       }) || [];
       
@@ -151,7 +145,7 @@ class ApplicationController {
               }
             }
           }
-        },
+        } as Prisma.ApplicationInclude,
         orderBy: { createdAt: 'desc' }
       }) || [];
       
@@ -186,7 +180,7 @@ class ApplicationController {
             }
           },
           user: true
-        }
+        } as Prisma.ApplicationInclude
       });
 
       if (!application) {
@@ -195,7 +189,9 @@ class ApplicationController {
 
       // Verificar se o usuário é o dono da empresa ou um admin
       const isAdmin = req.user?.role === 'ADMIN';
-      const isBusinessOwner = application.job.business.userId === userId;
+      // Usando uma asserção de tipo para resolver o problema de tipagem
+      const jobWithBusiness = application.job as any;
+      const isBusinessOwner = jobWithBusiness.business?.userId === userId;
 
       if (!isBusinessOwner && !isAdmin) {
         return res.status(403).json({ error: 'Você não tem permissão para atualizar esta candidatura' });
@@ -214,7 +210,7 @@ class ApplicationController {
             }
           },
           user: true
-        }
+        } as Prisma.ApplicationInclude
       });
 
       // Enviar e-mail de notificação
@@ -266,7 +262,7 @@ class ApplicationController {
         where: { id },
         include: {
           job: true
-        }
+        } as Prisma.ApplicationInclude
       });
 
       if (!application) {

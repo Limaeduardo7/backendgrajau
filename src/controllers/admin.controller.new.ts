@@ -4,7 +4,7 @@ import logger from '../config/logger';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import AuditService from '../services/AuditService';
-import { Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 class AdminController {
   // Dashboard e estatísticas
@@ -55,7 +55,7 @@ class AdminController {
               plan: true
             }
           }
-        }
+        } as Prisma.PaymentInclude
       });
       
       // Submissões pendentes
@@ -191,7 +191,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.BusinessInclude
         });
         
         if (type === 'business') {
@@ -215,7 +215,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.ProfessionalInclude
         });
         
         if (type === 'professional') {
@@ -245,7 +245,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.JobInclude
         });
         
         if (type === 'job') {
@@ -311,7 +311,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.BusinessInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)
@@ -342,7 +342,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.ProfessionalInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)
@@ -374,7 +374,7 @@ class AdminController {
               }
             },
             business: true
-          }
+          } as Prisma.JobInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)
@@ -432,7 +432,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.BusinessInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)
@@ -463,7 +463,7 @@ class AdminController {
                 email: true
               }
             }
-          }
+          } as Prisma.ProfessionalInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)
@@ -495,7 +495,7 @@ class AdminController {
               }
             },
             business: true
-          }
+          } as Prisma.JobInclude
         });
         
         // Criar notificação (comentado até o modelo estar disponível)

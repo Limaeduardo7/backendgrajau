@@ -3,6 +3,7 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import PaymentService from '../services/PaymentService';
 import EmailService from '../services/EmailService';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 class PaymentController {
   // ===== PLANOS =====
@@ -238,13 +239,8 @@ class PaymentController {
               id: true,
               occupation: true
             }
-          },
-          payments: {
-            orderBy: { createdAt: 'desc' },
-            take: 1
           }
-        },
-        orderBy: { createdAt: 'desc' }
+        } as Prisma.SubscriptionInclude
       });
       
       return res.json(subscriptions);
@@ -268,32 +264,8 @@ class PaymentController {
         where: { id },
         include: {
           plan: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
-          business: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          professional: {
-            select: {
-              id: true,
-              occupation: true
-            }
-          },
-          payments: {
-            orderBy: { createdAt: 'desc' },
-            include: {
-              invoice: true
-            }
-          }
-        }
+          user: true
+        } as Prisma.SubscriptionInclude
       });
       
       if (!subscription) {
@@ -493,30 +465,12 @@ class PaymentController {
         include: {
           subscription: {
             include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              },
-              plan: true,
-              business: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              },
-              professional: {
-                select: {
-                  id: true,
-                  occupation: true
-                }
-              }
+              user: true,
+              plan: true
             }
           },
           invoice: true
-        }
+        } as Prisma.PaymentInclude
       });
       
       if (!payment) {

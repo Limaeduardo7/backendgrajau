@@ -2,7 +2,7 @@ import mercadopago from '../config/payment';
 import { ApiError } from '../utils/ApiError';
 import prisma from '../config/prisma';
 import EmailService from './EmailService';
-import { SubStatus, PayStatus } from '@prisma/client';
+import { SubStatus, PayStatus, Prisma, PrismaClient } from '@prisma/client';
 
 interface CheckoutItem {
   id: string;
@@ -57,7 +57,7 @@ class PaymentService {
       // Buscar plano e usuário
       const plan = await prisma.plan.findUnique({
         where: { id: planId },
-        include: { subscriptions: true }
+        include: { subscriptions: true } as Prisma.PlanInclude
       });
 
       if (!plan) {
@@ -218,8 +218,8 @@ class PaymentService {
           user: true,
           plan: true,
           business: true,
-          professional: true,
-        },
+          professional: true
+        } as Prisma.SubscriptionInclude
       });
 
       if (!subscription) {
@@ -641,7 +641,7 @@ class PaymentService {
               professional: true
             }
           }
-        }
+        } as Prisma.PaymentInclude
       });
 
       if (!payment) {
@@ -675,15 +675,15 @@ class PaymentService {
           status: payment.subscription.status,
           startDate: payment.subscription.startDate,
           endDate: payment.subscription.endDate,
-          plan: payment.subscription.plan ? {
-            id: payment.subscription.plan.id,
-            name: payment.subscription.plan.name,
-            price: payment.subscription.plan.price
+          plan: (payment.subscription as any).plan ? {
+            id: (payment.subscription as any).plan.id,
+            name: (payment.subscription as any).plan.name,
+            price: (payment.subscription as any).plan.price
           } : null,
-          user: payment.subscription.user ? {
-            id: payment.subscription.user.id,
-            name: payment.subscription.user.name,
-            email: payment.subscription.user.email
+          user: (payment.subscription as any).user ? {
+            id: (payment.subscription as any).user.id,
+            name: (payment.subscription as any).user.name,
+            email: (payment.subscription as any).user.email
           } : null
         } : null,
         mercadoPago: mpPaymentInfo,
