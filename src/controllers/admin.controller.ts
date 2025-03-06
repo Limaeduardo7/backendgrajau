@@ -230,6 +230,9 @@ class AdminController {
         throw new ApiError(401, 'Usuário não autenticado');
       }
       
+      // Nota: A verificação de permissão de administrador é feita no frontend com Clerk
+      // O backend apenas verifica se o usuário está autenticado
+      
       let result;
       
       switch (itemType) {
@@ -248,10 +251,10 @@ class AdminController {
       
       return res.json(result);
     } catch (error) {
-      console.error('Erro ao aprovar item:', error);
       if (error instanceof ApiError) {
         return res.status(error.statusCode).json({ error: error.message });
       }
+      console.error('Erro ao aprovar item:', error);
       return res.status(500).json({ error: 'Erro ao aprovar item' });
     }
   };
@@ -265,6 +268,9 @@ class AdminController {
       if (!adminId) {
         throw new ApiError(401, 'Usuário não autenticado');
       }
+      
+      // Nota: A verificação de permissão de administrador é feita no frontend com Clerk
+      // O backend apenas verifica se o usuário está autenticado
       
       let result;
       
@@ -284,10 +290,10 @@ class AdminController {
       
       return res.json(result);
     } catch (error) {
-      console.error('Erro ao rejeitar item:', error);
       if (error instanceof ApiError) {
         return res.status(error.statusCode).json({ error: error.message });
       }
+      console.error('Erro ao rejeitar item:', error);
       return res.status(500).json({ error: 'Erro ao rejeitar item' });
     }
   };
