@@ -26,6 +26,8 @@ export class JobService {
     const { page, limit, search, category, type, location, featured } = params;
     const skip = (page - 1) * limit;
 
+    logger.info(`Parâmetros da consulta: ${JSON.stringify(params)}`);
+
     const where: any = {
       status: 'APPROVED',
     };
@@ -53,6 +55,15 @@ export class JobService {
       where.featured = { equals: true } as any;
     }
 
+    logger.info(`Consulta a ser executada: ${JSON.stringify({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: 'desc'
+      }
+    }, null, 2)}`);
+
     try {
       const [jobs, total] = await withRetry(
         async () => {
@@ -60,13 +71,7 @@ export class JobService {
             prisma.job.findMany({
               where,
               include: {
-                business: {
-                  select: {
-                    name: true,
-                    city: true,
-                    state: true,
-                  },
-                },
+                business: true,
               },
               skip,
               take: limit,
@@ -84,6 +89,8 @@ export class JobService {
           },
         }
       );
+
+      logger.info(`Consulta retornou ${jobs.length} de ${total} vagas`);
 
       return {
         jobs,
