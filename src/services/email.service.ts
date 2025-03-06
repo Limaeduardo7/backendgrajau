@@ -1,15 +1,34 @@
 import { Resend } from 'resend';
 import dotenv from 'dotenv';
+import logger from '../config/logger';
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Verificar se a chave de API está definida
+const apiKey = process.env.RESEND_API_KEY;
+let resend: Resend | null = null;
+
+try {
+  if (apiKey) {
+    resend = new Resend(apiKey);
+    logger.info('Serviço de email Resend inicializado com sucesso');
+  } else {
+    logger.warn('Chave de API do Resend não configurada. Serviço de email desativado.');
+  }
+} catch (error) {
+  logger.error('Erro ao inicializar o serviço de email Resend:', error);
+}
 
 export class EmailService {
   async sendWelcomeEmail(email: string, name: string) {
     try {
+      if (!resend) {
+        logger.warn(`Tentativa de enviar email de boas-vindas para ${email}, mas o serviço de email está desativado`);
+        return { success: false, message: 'Serviço de email desativado' };
+      }
+      
       await resend.emails.send({
-        from: 'Anunciar Grajaú <noreply@anunciargrajau.com.br>',
+        from: process.env.EMAIL_FROM || 'Anunciar Grajaú <noreply@anunciargrajau.com.br>',
         to: email,
         subject: 'Bem-vindo ao Anunciar Grajaú!',
         html: `
@@ -22,14 +41,21 @@ export class EmailService {
           <p>Equipe Anunciar Grajaú</p>
         `
       });
+      logger.info(`Email de boas-vindas enviado para ${email}`);
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao enviar email de boas-vindas:', error);
-      throw error;
+      logger.error(`Erro ao enviar email de boas-vindas para ${email}:`, error);
+      return { success: false, error };
     }
   }
 
   async sendBusinessApprovalEmail(email: string, name: string, businessName: string) {
     try {
+      if (!resend) {
+        logger.warn(`Tentativa de enviar email de aprovação de negócio para ${email}, mas o serviço de email está desativado`);
+        return { success: false, message: 'Serviço de email desativado' };
+      }
+      
       await resend.emails.send({
         from: 'Anunciar Grajaú <noreply@anunciargrajau.com.br>',
         to: email,
@@ -44,14 +70,21 @@ export class EmailService {
           <p>Equipe Anunciar Grajaú</p>
         `
       });
+      logger.info(`Email de aprovação de negócio enviado para ${email}`);
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao enviar email de aprovação de negócio:', error);
-      throw error;
+      logger.error(`Erro ao enviar email de aprovação de negócio para ${email}:`, error);
+      return { success: false, error };
     }
   }
 
   async sendJobApplicationEmail(email: string, name: string, jobTitle: string, businessName: string) {
     try {
+      if (!resend) {
+        logger.warn(`Tentativa de enviar email de candidatura para ${email}, mas o serviço de email está desativado`);
+        return { success: false, message: 'Serviço de email desativado' };
+      }
+      
       await resend.emails.send({
         from: 'Anunciar Grajaú <noreply@anunciargrajau.com.br>',
         to: email,
@@ -65,14 +98,21 @@ export class EmailService {
           <p>Equipe Anunciar Grajaú</p>
         `
       });
+      logger.info(`Email de candidatura enviado para ${email}`);
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao enviar email de candidatura:', error);
-      throw error;
+      logger.error(`Erro ao enviar email de candidatura para ${email}:`, error);
+      return { success: false, error };
     }
   }
 
   async sendPasswordResetEmail(email: string, name: string, resetLink: string) {
     try {
+      if (!resend) {
+        logger.warn(`Tentativa de enviar email de redefinição de senha para ${email}, mas o serviço de email está desativado`);
+        return { success: false, message: 'Serviço de email desativado' };
+      }
+      
       await resend.emails.send({
         from: 'Anunciar Grajaú <noreply@anunciargrajau.com.br>',
         to: email,
@@ -88,9 +128,11 @@ export class EmailService {
           <p>Equipe Anunciar Grajaú</p>
         `
       });
+      logger.info(`Email de redefinição de senha enviado para ${email}`);
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao enviar email de redefinição de senha:', error);
-      throw error;
+      logger.error(`Erro ao enviar email de redefinição de senha para ${email}:`, error);
+      return { success: false, error };
     }
   }
 } 
