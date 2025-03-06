@@ -8,6 +8,8 @@ import { validateApproveItem, validateRejectItem, validateSettings, validateAuto
 const router = Router();
 
 // Middleware para verificar se o usuário é admin
+// NOTA: A verificação de ADMIN agora é feita apenas no frontend usando Clerk
+// O backend ainda verifica autenticação básica, mas não verifica mais roles específicas
 const isAdmin = requireRole(['ADMIN']);
 
 /**
