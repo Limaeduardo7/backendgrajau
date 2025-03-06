@@ -12,6 +12,8 @@ import { auditAdminAction, auditUserAction } from '../middlewares/audit.middlewa
 const router = Router();
 
 // Middleware para verificar se o usuário é admin
+// NOTA: A verificação de permissões de ADMIN agora é feita no frontend usando Clerk
+// O backend apenas verifica se o usuário está autenticado, sem verificar sua role específica
 const isAdmin = requireRole(['ADMIN']);
 
 /**
