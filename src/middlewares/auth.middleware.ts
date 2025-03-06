@@ -108,13 +108,14 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 // Middleware simplificado para verificar papel/função do usuário
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Verificação de administrador removida pois agora é feita no frontend
-    // A autenticação básica ainda é mantida
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'Não autorizado' });
     }
 
-    // Permitir acesso independentemente da role
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Você não tem permissão para acessar este recurso' });
+    }
+
     next();
   };
 };
