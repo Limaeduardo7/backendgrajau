@@ -5,6 +5,7 @@ import { unlinkSync } from 'fs';
 import { join } from 'path';
 import { withRetry } from '../utils/retryHandler';
 import logger from '../config/logger';
+import { isAdmin, isOwnerOrAdmin } from '../utils/permissionUtils';
 
 interface ListParams {
   page?: number;
@@ -200,6 +201,8 @@ export class BusinessService {
 
     if (business.userId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
+      logger.info(`Usuário ${userId} tentando excluir negócio ${id} que pertence a ${business.userId}`);
+      
       if (user?.role !== 'ADMIN') {
         throw new ApiError(403, 'Você não tem permissão para deletar este negócio');
       }
@@ -216,9 +219,15 @@ export class BusinessService {
       });
     }
 
-    await prisma.business.delete({
-      where: { id },
-    });
+    try {
+      await prisma.$transaction([
+        prisma.job.deleteMany({ where: { businessId: id } }),
+        prisma.business.delete({ where: { id } }),
+      ]);
+    } catch (error) {
+      logger.error(`Erro ao excluir negócio: ${error}`);
+      throw new ApiError(500, 'Erro ao excluir negócio');
+    }
   }
 
   async addPhotos(id: string, files: Express.Multer.File[], userId: string): Promise<Business> {

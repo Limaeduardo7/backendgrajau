@@ -301,16 +301,143 @@ class AdminController {
   // Listar submissões pendentes
   getPendingSubmissions = async (req: Request, res: Response) => {
     try {
-      const { type } = req.query;
+      const { type = 'all', page = 1, limit = 10 } = req.query;
       
-      const result = await ApprovalService.getPendingItems(type as 'business' | 'professional' | 'job' | undefined);
+      // Nota: A verificação de permissão de administrador é feita no frontend com Clerk
+      // O backend apenas verifica se o usuário está autenticado
       
-      return res.json(result);
+      const skip = (Number(page) - 1) * Number(limit);
+      
+      // Preparar o filtro com base no tipo de submissão
+      const getWhere = (type: string) => {
+        const baseWhere = { status: 'PENDING' };
+        
+        switch (type) {
+          case 'business':
+            return { businesses: { where: baseWhere } };
+          case 'professional':
+            return { professional: { where: baseWhere } };
+          case 'job':
+            return { jobs: { where: baseWhere } };
+          default:
+            return {};
+        }
+      };
+      
+      const itemsPromise = async () => {
+        if (type === 'all') {
+          // Buscar todos os tipos de submissão
+          return Promise.all([
+            prisma.business.findMany({
+              where: { status: 'PENDING' },
+              include: { user: true },
+              take: Number(limit),
+              skip,
+              orderBy: { createdAt: 'desc' },
+            }),
+            prisma.professional.findMany({
+              where: { status: 'PENDING' },
+              include: { user: true },
+              take: Number(limit),
+              skip,
+              orderBy: { createdAt: 'desc' },
+            }),
+            prisma.job.findMany({
+              where: { status: 'PENDING' },
+              include: { business: true },
+              take: Number(limit),
+              skip,
+              orderBy: { createdAt: 'desc' },
+            }),
+          ]);
+        } else {
+          // Buscar apenas um tipo específico
+          switch (type) {
+            case 'business':
+              return prisma.business.findMany({
+                where: { status: 'PENDING' },
+                include: { user: true },
+                take: Number(limit),
+                skip,
+                orderBy: { createdAt: 'desc' },
+              });
+            case 'professional':
+              return prisma.professional.findMany({
+                where: { status: 'PENDING' },
+                include: { user: true },
+                take: Number(limit),
+                skip,
+                orderBy: { createdAt: 'desc' },
+              });
+            case 'job':
+              return prisma.job.findMany({
+                where: { status: 'PENDING' },
+                include: { business: true },
+                take: Number(limit),
+                skip,
+                orderBy: { createdAt: 'desc' },
+              });
+            default:
+              return [];
+          }
+        }
+      };
+      
+      // Buscar contagens
+      const countPromise = async () => {
+        if (type === 'all') {
+          return Promise.all([
+            prisma.business.count({ where: { status: 'PENDING' } }),
+            prisma.professional.count({ where: { status: 'PENDING' } }),
+            prisma.job.count({ where: { status: 'PENDING' } }),
+          ]);
+        } else {
+          switch (type) {
+            case 'business':
+              return prisma.business.count({ where: { status: 'PENDING' } });
+            case 'professional':
+              return prisma.professional.count({ where: { status: 'PENDING' } });
+            case 'job':
+              return prisma.job.count({ where: { status: 'PENDING' } });
+            default:
+              return 0;
+          }
+        }
+      };
+      
+      const [items, counts] = await Promise.all([itemsPromise(), countPromise()]);
+      
+      // Formatar os resultados
+      let result: any;
+      let total: number;
+      
+      if (type === 'all') {
+        const [businesses, professionals, jobs] = items as [any[], any[], any[]];
+        const [businessCount, professionalCount, jobCount] = counts as number[];
+        
+        result = {
+          businesses,
+          professionals,
+          jobs,
+        };
+        
+        total = businessCount + professionalCount + jobCount;
+      } else {
+        result = {
+          items,
+        };
+        
+        total = counts as number;
+      }
+      
+      return res.json({
+        ...result,
+        total,
+        pages: Math.ceil(total / Number(limit)),
+        currentPage: Number(page),
+      });
     } catch (error) {
       console.error('Erro ao buscar submissões pendentes:', error);
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
       return res.status(500).json({ error: 'Erro ao buscar submissões pendentes' });
     }
   };
