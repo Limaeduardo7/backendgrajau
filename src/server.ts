@@ -9,7 +9,7 @@ dotenv.config();
 checkRequiredEnvVars();
 
 const PORT = process.env.PORT || 3001;
-
+ 
 // Inicia o servidor
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);

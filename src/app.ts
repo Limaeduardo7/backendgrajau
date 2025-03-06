@@ -45,7 +45,28 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Segurança
-app.use(helmet());
+app.use(helmet({
+  // Configurar Content-Security-Policy para permitir o funcionamento da API
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "https://anunciargrajaueregiao.com"]
+    }
+  },
+  // Desativar crossOriginResourcePolicy para permitir o compartilhamento de recursos
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Configuração CORS - reposicionada após configurações de segurança
+app.use(cors({
+  origin: ['https://anunciargrajaueregiao.com', 'https://www.anunciargrajaueregiao.com', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
 
 // Rate limiting com configuração mais segura
 const limiter = rateLimit({

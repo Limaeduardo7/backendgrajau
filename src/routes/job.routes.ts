@@ -13,13 +13,17 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
       await handler(req, res);
     } catch (error: any) {
       console.error('Erro na rota pública:', error);
-      res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+      res.status(500).json({ error: 'Erro ao buscar vaga' });
     }
   };
 
 // Rotas públicas
 router.get('/', handlePublicRouteErrors(jobController.list));
 router.get('/search', handlePublicRouteErrors(jobController.list));
+router.get('/featured', handlePublicRouteErrors((req, res) => {
+  req.query.featured = 'true';
+  return jobController.list(req, res);
+}));
 router.get('/:id', handlePublicRouteErrors(jobController.getById));
 
 // Rotas protegidas

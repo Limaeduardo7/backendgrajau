@@ -14,7 +14,7 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
       await handler(req, res);
     } catch (error: any) {
       console.error('Erro na rota pública:', error);
-      res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+      res.status(500).json({ error: 'Erro ao listar empresas' });
     }
   };
 
@@ -130,31 +130,11 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
  */
 router.get('/', handlePublicRouteErrors(businessController.list));
 router.get('/search', handlePublicRouteErrors(businessController.list));
-
-/**
- * @swagger
- * /business/{id}:
- *   get:
- *     summary: Obtém uma empresa pelo ID
- *     tags: [Empresas]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID da empresa
- *     responses:
- *       200:
- *         description: Detalhes da empresa
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Business'
- *       404:
- *         description: Empresa não encontrada
- */
-router.get('/:id', businessController.getById);
+router.get('/featured', handlePublicRouteErrors((req, res) => {
+  req.query.featured = 'true';
+  return businessController.list(req, res);
+}));
+router.get('/:id', handlePublicRouteErrors(businessController.getById));
 
 // Rotas protegidas
 router.use(requireAuth);
