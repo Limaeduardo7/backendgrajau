@@ -28,29 +28,6 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return res.status(401).json({ error: 'Token não fornecido' });
     }
 
-    // Caso especial para token do administrador (formato Base64)
-    if (token.includes('.') === false) {
-      try {
-        const decodedToken = Buffer.from(token, 'base64').toString('utf-8');
-        if (decodedToken.includes(':')) {
-          const [userId] = decodedToken.split(':');
-          const user = await prisma.user.findUnique({ where: { id: userId } });
-          
-          if (user && user.role === 'ADMIN') {
-            req.user = {
-              id: user.id,
-              clerkId: user.clerkId,
-              role: user.role,
-              email: user.email
-            };
-            return next();
-          }
-        }
-      } catch (error) {
-        // Ignorar erro e continuar com a autenticação normal
-      }
-    }
-
     // Autenticação via Clerk
     try {
       // Verificar a sessão com o Clerk
@@ -106,14 +83,14 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 };
 
 // Middleware simplificado para verificar papel/função do usuário
+// A verificação de roles foi REMOVIDA pois agora é feita no frontend com Clerk
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Verificação básica de autenticação
+    // Apenas verifica se o usuário está autenticado, sem verificar a role
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'Não autorizado' });
     }
 
-    // A verificação de roles foi removida pois agora é feita no frontend usando Clerk
     // Permitir acesso independentemente da role
     next();
   };

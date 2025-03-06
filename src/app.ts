@@ -11,18 +11,8 @@ import { sanitizeData } from './middlewares/sanitizer.middleware';
 import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
 import apiPrefixMiddleware from './middlewares/apiPrefixMiddleware';
-import { ensureAdminUser } from './scripts/ensureAdminUser';
 
 const app = express();
-
-// Garantir que o admin user esteja configurado corretamente
-ensureAdminUser()
-  .then(admin => {
-    logger.info(`Admin user verificado/configurado: ${admin.email}`);
-  })
-  .catch(error => {
-    logger.error('Erro ao configurar admin user:', error);
-  });
 
 // Configurar trust proxy apenas para ambientes específicos
 // Em produção, configurar apenas para os IPs dos proxies confiáveis (Nginx, load balancers, etc.)
