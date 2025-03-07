@@ -14,6 +14,7 @@ import userRoutes from './user.routes';
 import { requireAuth, validateUser } from '../middlewares/auth.middleware';
 import auditRoutes from './audit.routes';
 import { AuthController } from '../controllers/auth.controller';
+import transitionRoutes from './transition.routes';
 
 const router = Router();
 const authController = new AuthController();
@@ -39,6 +40,10 @@ router.post('/register', authController.register);
 
 // Alias para a rota de login (para compatibilidade)
 router.post('/login', authController.login);
+
+// Rotas de transição temporárias para compatibilidade com o frontend
+// IMPORTANTE: Estas rotas devem ser removidas quando o frontend for atualizado
+router.use('/', transitionRoutes);
 
 // Registrando as rotas principais
 router.use('/businesses', businessRoutes);
