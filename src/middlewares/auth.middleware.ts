@@ -4,6 +4,7 @@ import { ApiError } from '../utils/ApiError';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
 import { verifyClerkToken } from '../config/clerk';
+import { verifyClerkJWT } from '../services/clerk.service';
 import tokenService from '../services/token.service';
 
 // Estender a interface Request para incluir o usuário
@@ -37,7 +38,24 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     }
 
     try {
-      // Verificar o token (função atualizada que suporta ambos os formatos)
+      // MÉTODO 1: Tentar verificar como JWT do Clerk (novo método)
+      if (token.includes('.') && !token.startsWith('clerk_token_') && !token.startsWith('clerk_recovery_')) {
+        try {
+          const userData = await verifyClerkJWT(token);
+          req.user = {
+            id: userData.userId,
+            clerkId: userData.clerkId,
+            role: userData.role,
+            email: userData.email
+          };
+          return next();
+        } catch (jwtError) {
+          logger.debug(`Verificação JWT falhou, tentando método legado: ${jwtError instanceof Error ? jwtError.message : 'Erro desconhecido'}`);
+          // Continuar para o método legado
+        }
+      }
+      
+      // MÉTODO 2: Tentar verificar como token personalizado/legacy (método anterior)
       const userData = await verifyClerkToken(token);
       
       // Buscar usuário no banco de dados

@@ -169,7 +169,17 @@ app.get('/status', (req, res) => {
 
 // Rota para a página de recuperação de autenticação
 app.get('/auth-recovery', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'auth-recovery.html'));
+  res.sendFile(path.join(__dirname, 'public', 'auth-recovery-page.html'));
+});
+
+// Rota para o script de recuperação (para ser incluído diretamente no frontend)
+app.get('/auth-recovery.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'auth-recovery.js'));
+  
+  // Adicionar headers CORS para permitir incluir o script em qualquer domínio
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 });
 
 // Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API

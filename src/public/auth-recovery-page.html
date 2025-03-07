@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correção de Autenticação - Anunciar Grajaú</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 30px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+        code {
+            font-family: Consolas, Monaco, 'Andale Mono', monospace;
+            color: #e74c3c;
+        }
+        .alert {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #f5c6cb;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #c3e6cb;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .status {
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+        }
+        #tokenStatus {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Correção de Problemas de Autenticação</h1>
+    
+    <div class="alert">
+        <strong>Atenção:</strong> Esta página é um suporte para resolver problemas de autenticação na plataforma Anunciar Grajaú.
+    </div>
+    
+    <h2>Diagnóstico Automático</h2>
+    <p>Estamos verificando seu token de autenticação para detectar possíveis problemas...</p>
+    
+    <div class="status">
+        <p>Status: <span id="tokenStatus">Verificando...</span></p>
+    </div>
+    
+    <div id="problemSection" style="display:none;">
+        <h2>Problema Detectado</h2>
+        <p>Foi identificado um problema com seu token de autenticação. Recomendamos as seguintes ações:</p>
+        
+        <ol>
+            <li>Clique no botão abaixo para limpar seus dados de autenticação</li>
+            <li>Faça login novamente na plataforma</li>
+        </ol>
+        
+        <button class="btn" id="fixButton">Corrigir Automaticamente</button>
+    </div>
+    
+    <div id="successSection" style="display:none;" class="success">
+        <h2>Autenticação OK</h2>
+        <p>Não foi detectado nenhum problema com sua autenticação. Você pode continuar usando a plataforma normalmente.</p>
+        
+        <a href="/" class="btn">Voltar para a Página Inicial</a>
+    </div>
+    
+    <h2>Problemas Persistentes?</h2>
+    <p>Se você continuar enfrentando problemas, tente as seguintes ações:</p>
+    
+    <ol>
+        <li>Limpe os cookies e dados de navegação do seu navegador</li>
+        <li>Tente acessar em uma janela anônima/privada</li>
+        <li>Use outro navegador</li>
+        <li>Entre em contato com o suporte através do e-mail: <a href="mailto:anunciargrajau@gmail.com">anunciargrajau@gmail.com</a></li>
+    </ol>
+
+    <script>
+        // Função para verificar token
+        async function checkToken() {
+            const tokenStatus = document.getElementById('tokenStatus');
+            const problemSection = document.getElementById('problemSection');
+            const successSection = document.getElementById('successSection');
+            
+            // Obter token do localStorage
+            const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+            
+            if (!token) {
+                tokenStatus.textContent = 'Nenhum token encontrado';
+                tokenStatus.style.color = '#e74c3c';
+                problemSection.style.display = 'block';
+                return;
+            }
+            
+            // Verificar token problemático conhecido
+            if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
+                tokenStatus.textContent = 'Token problemático detectado';
+                tokenStatus.style.color = '#e74c3c';
+                problemSection.style.display = 'block';
+                return;
+            }
+            
+            try {
+                // Verificar token com API
+                const API_URL = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:3000/api' 
+                    : 'https://api.anunciargrajaueregiao.com/api';
+                
+                const response = await fetch(`${API_URL}/auth/check-auth`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tokenToCheck: token })
+                });
+                
+                const data = await response.json();
+                
+                if (data.valid === true) {
+                    tokenStatus.textContent = 'Token válido';
+                    tokenStatus.style.color = '#27ae60';
+                    successSection.style.display = 'block';
+                } else {
+                    tokenStatus.textContent = 'Token inválido ou expirado';
+                    tokenStatus.style.color = '#e74c3c';
+                    problemSection.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro ao verificar token:', error);
+                tokenStatus.textContent = 'Erro ao verificar token';
+                tokenStatus.style.color = '#e74c3c';
+                problemSection.style.display = 'block';
+            }
+        }
+        
+        // Função para corrigir autenticação
+        async function fixAuthentication() {
+            // Limpar todos os tokens do localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('clerk-token');
+            localStorage.removeItem('user');
+            
+            // Redirecionar para página de login
+            window.location.href = '/login';
+        }
+        
+        // Inicializar quando a página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            checkToken();
+            
+            // Adicionar handler para o botão de correção
+            const fixButton = document.getElementById('fixButton');
+            if (fixButton) {
+                fixButton.addEventListener('click', fixAuthentication);
+            }
+        });
+    </script>
+    
+    <!-- Incluir script de recuperação -->
+    <script src="/auth-recovery.js"></script>
+</body>
+</html> 

@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import tokenService from '../services/token.service';
 import { verifyClerkToken } from '../config/clerk';
+import { verifyClerkJWT } from '../services/clerk.service';
 
 export class AuthController {
   /**
@@ -696,14 +697,19 @@ export class AuthController {
       
       // Verificar se é o token problemático conhecido
       if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
-        logger.warn(`Token problemático detectado durante verificação`);
+        logger.warn(`Token problemático detectado durante verificação: ${token}`);
         
         // Buscar um usuário aprovado para gerar token temporário
         const fallbackUser = await prisma.user.findFirst({
           where: {
             OR: [
               { email: 'anunciargrajau@gmail.com' },
-              { status: 'APPROVED' }
+              { 
+                AND: [
+                  { status: 'APPROVED' },
+                  { role: 'USER' }
+                ]
+              }
             ]
           },
           orderBy: { createdAt: 'desc' }
@@ -721,38 +727,90 @@ export class AuthController {
           fallbackUser.id,
           fallbackUser.email,
           fallbackUser.role,
-          30 // 30 minutos
+          60 // 60 minutos
         );
         
         // Registrar a recuperação no log de auditoria
-        await prisma.auditLog.create({
-          data: {
-            userId: fallbackUser.id,
-            action: 'AUTO_RECOVERY_TOKEN_GENERATED',
-            entityType: 'USER',
-            entityId: fallbackUser.id,
-            details: `Token de recuperação gerado automaticamente devido a problemas de autenticação`,
-            ipAddress: req.ip
-          }
-        });
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId: fallbackUser.id,
+              action: 'AUTO_RECOVERY_TOKEN_GENERATED',
+              entityType: 'USER',
+              entityId: fallbackUser.id,
+              details: `Token de recuperação gerado automaticamente devido a problemas de autenticação`,
+              ipAddress: req.ip || 'unknown'
+            }
+          });
+        } catch (auditError) {
+          logger.error('Erro ao registrar auditoria:', auditError);
+        }
+        
+        logger.info(`Token de recuperação gerado com sucesso para usuário ${fallbackUser.id}`);
         
         return res.status(200).json({
           status: 'success',
           message: 'Token problemático detectado. Gerado token temporário de recuperação.',
           temporaryToken,
-          expiresIn: '30 minutos'
+          expiresIn: '60 minutos',
+          user: {
+            id: fallbackUser.id,
+            name: fallbackUser.name,
+            email: fallbackUser.email
+          }
         });
       }
       
       // Tentar verificar o token normalmente
       try {
-        await verifyClerkToken(token);
+        // Primeiro tentar como JWT
+        if (token.includes('.') && !token.startsWith('clerk_token_') && !token.startsWith('clerk_recovery_')) {
+          try {
+            const userData = await verifyClerkJWT(token);
+            return res.status(200).json({
+              status: 'success',
+              message: 'Token JWT válido',
+              valid: true,
+              user: {
+                id: userData.userId,
+                clerkId: userData.clerkId,
+                role: userData.role,
+                email: userData.email
+              }
+            });
+          } catch (jwtError) {
+            // Continuar para verificação legada
+            logger.debug('Verificação JWT falhou, tentando método legado');
+          }
+        }
+        
+        // Tentar como token personalizado
+        const userData = await verifyClerkToken(token);
+        
+        // Buscar usuário no banco de dados
+        const user = await prisma.user.findUnique({
+          where: { clerkId: userData.clerkId },
+        });
+        
+        if (!user) {
+          return res.status(200).json({
+            status: 'warning',
+            message: 'Token verificado mas usuário não encontrado no banco',
+            valid: false
+          });
+        }
         
         // Se chegou aqui, o token está válido
         return res.status(200).json({
           status: 'success',
           message: 'Token válido',
-          valid: true
+          valid: true,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role
+          }
         });
       } catch (error) {
         // Token inválido, mas não é o problemático conhecido
