@@ -49,8 +49,17 @@ class UserController {
       const skip = (page - 1) * limit;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Não autorizado' });
+        logger.warn(`Tentativa de acesso não autorizado a /users/businesses de ${req.ip || 'IP desconhecido'}`);
+        return res.status(401).json({ 
+          error: 'Não autorizado', 
+          code: 'AUTH_USER_NOT_FOUND',
+          message: 'Usuário não autenticado ou sessão expirada',
+          redirectTo: '/login'
+        });
       }
+
+      // Registrar acesso para depuração
+      logger.debug(`Usuário ${userId} acessando businesses - page: ${page}, limit: ${limit}`);
 
       const businesses = await prisma.business.findMany({
         where: { userId },
@@ -63,6 +72,8 @@ class UserController {
         where: { userId },
       });
 
+      logger.debug(`Retornando ${businesses.length} businesses para usuário ${userId}`);
+
       return res.status(200).json({
         data: businesses,
         pagination: {
@@ -74,7 +85,11 @@ class UserController {
       });
     } catch (error) {
       logger.error('Erro ao obter empresas do usuário:', error);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ 
+        error: 'Erro ao obter empresas', 
+        code: 'SERVER_ERROR',
+        message: 'Ocorreu um erro ao processar sua solicitação'
+      });
     }
   };
 

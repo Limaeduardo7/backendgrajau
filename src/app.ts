@@ -12,7 +12,7 @@ import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
 import apiPrefixMiddleware from './middlewares/apiPrefixMiddleware';
 import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 
 const app = express();
@@ -143,6 +143,39 @@ app.use('/api', express.static(path.join(__dirname, 'public')));
 
 // Middleware de logging personalizado
 app.use(logRequest);
+
+// Middleware para registrar detalhes de autenticação em todas as requisições
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  const method = req.method;
+  const url = req.originalUrl;
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7, 15) + '...' // Mostrar apenas parte do token por segurança
+      : authHeader.substring(0, 8) + '...';
+    
+    logger.debug(`${method} ${url} - IP: ${ip} - Token: ${token}`);
+  } else {
+    logger.debug(`${method} ${url} - IP: ${ip} - Sem token`);
+  }
+  
+  // Registrar o tempo de resposta
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    
+    if (status >= 400) {
+      logger.warn(`${method} ${url} - Status: ${status} - Duração: ${duration}ms`);
+    } else {
+      logger.debug(`${method} ${url} - Status: ${status} - Duração: ${duration}ms`);
+    }
+  });
+  
+  next();
+});
 
 // Sanitização de dados
 app.use(sanitizeData);

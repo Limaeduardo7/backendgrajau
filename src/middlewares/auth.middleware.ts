@@ -29,14 +29,35 @@ declare global {
 // Middleware para verificar autenticação usando Clerk
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Verificar se o token está no header de autorização
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      logger.warn(`Acesso não autorizado: Token não fornecido para ${req.originalUrl}`);
+      return res.status(401).json({ 
+        error: 'Token não fornecido',
+        code: 'AUTH_TOKEN_MISSING',
+        redirectTo: '/login'
+      });
+    }
+
+    // Extrair o token do header
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader;
 
     if (!token) {
-      return res.status(401).json({ error: 'Token não fornecido' });
+      logger.warn(`Acesso não autorizado: Token inválido para ${req.originalUrl}`);
+      return res.status(401).json({ 
+        error: 'Token inválido',
+        code: 'AUTH_TOKEN_INVALID',
+        redirectTo: '/login'
+      });
     }
 
     // Verificar se é um token problemático conhecido
     if (PROBLEM_TOKENS.includes(token)) {
+      logger.info(`Token problemático detectado para ${req.originalUrl}`);
+      
       // Tentar recuperar usando JWT
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any;
@@ -53,12 +74,21 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
               role: user.role,
               email: user.email
             };
+            
+            logger.info(`Autenticação recuperada para usuário ${user.id} usando JWT`);
             return next();
           }
         }
       } catch (jwtError) {
         logger.warn('Erro ao verificar token JWT:', jwtError);
       }
+      
+      // Se chegou aqui, não foi possível recuperar com JWT
+      return res.status(401).json({ 
+        error: 'Token problemático detectado',
+        code: 'AUTH_PROBLEM_TOKEN',
+        redirectTo: '/api/auth-recovery'
+      });
     }
 
     // Tentar verificar com Clerk
@@ -72,7 +102,12 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       });
 
       if (!user) {
-        return res.status(401).json({ error: 'Usuário não encontrado' });
+        logger.warn(`Usuário não encontrado para Clerk ID: ${clerkUser.id}`);
+        return res.status(401).json({ 
+          error: 'Usuário não encontrado',
+          code: 'AUTH_USER_NOT_FOUND',
+          redirectTo: '/login'
+        });
       }
 
       req.user = {
@@ -82,13 +117,32 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         email: user.email
       };
 
+      logger.debug(`Usuário ${user.id} autenticado com sucesso para ${req.originalUrl}`);
       next();
     } catch (error) {
-      return res.status(401).json({ error: 'Token inválido' });
+      logger.error(`Erro ao verificar token: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      // Verificar se é um erro de token expirado
+      if (error instanceof Error && error.message.includes('expired')) {
+        return res.status(401).json({ 
+          error: 'Token expirado',
+          code: 'AUTH_TOKEN_EXPIRED',
+          redirectTo: '/login'
+        });
+      }
+      
+      return res.status(401).json({ 
+        error: 'Token inválido',
+        code: 'AUTH_TOKEN_INVALID',
+        redirectTo: '/login'
+      });
     }
   } catch (error) {
     logger.error('Erro no middleware de autenticação:', error);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
+    return res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      code: 'SERVER_ERROR'
+    });
   }
 };
 
@@ -115,9 +169,20 @@ export const requireRole = (roles: string[]) => {
 // Middleware para validar usuário em rotas públicas
 export const validateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Verificar se o token está no header de autorização
+    const authHeader = req.headers.authorization;
     
     // Se não houver token, prosseguir sem usuário
+    if (!authHeader) {
+      req.user = undefined;
+      return next();
+    }
+
+    // Extrair o token do header
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader;
+    
     if (!token) {
       req.user = undefined;
       return next();
@@ -141,11 +206,15 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
               role: user.role,
               email: user.email
             };
+            
+            logger.info(`Autenticação recuperada para usuário ${user.id} usando JWT em rota pública`);
             return next();
           }
         }
       } catch (jwtError) {
-        logger.warn('Erro ao verificar token JWT:', jwtError);
+        logger.warn('Erro ao verificar token JWT em rota pública:', jwtError);
+        req.user = undefined;
+        return next();
       }
     }
 
@@ -166,15 +235,23 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
           role: user.role,
           email: user.email
         };
+        
+        logger.debug(`Usuário ${user.id} validado com sucesso em rota pública`);
+      } else {
+        req.user = undefined;
+        logger.debug(`Usuário Clerk ${clerkUser.id} não encontrado no banco de dados`);
       }
+      
+      next();
     } catch (error) {
       // Em caso de erro, prosseguir sem usuário
+      logger.debug(`Erro ao validar token em rota pública: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       req.user = undefined;
+      next();
     }
-    
-    next();
   } catch (error) {
     // Em caso de erro, prosseguir sem usuário
+    logger.error('Erro no middleware de validação de usuário:', error);
     req.user = undefined;
     next();
   }
@@ -188,11 +265,21 @@ export const sessionRecoveryMiddleware = (req: Request, res: Response, next: Nex
     '2u0AiWfTasYZwnkd4Hunqt0dE9u'
   ];
 
-  // Armazenar tentativas de autenticação para cada IP
+  // Obter informações do cliente
   const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.headers['user-agent'] || 'unknown';
   
   // Verificar cabeçalho de autorização
-  const token = req.headers.authorization?.split(' ')[1];
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return next();
+  }
+
+  // Extrair o token do header
+  const token = authHeader.startsWith('Bearer ') 
+    ? authHeader.substring(7) 
+    : authHeader;
+  
   if (!token) {
     return next();
   }
@@ -203,6 +290,10 @@ export const sessionRecoveryMiddleware = (req: Request, res: Response, next: Nex
     
     // Adicionar informações para depuração
     res.setHeader('X-Auth-Recovery', 'problem-token-detected');
+    
+    // Adicionar informações ao request para uso posterior
+    (req as any).problemToken = true;
+    (req as any).recoveryNeeded = true;
   }
   
   // Em qualquer caso, continuar para o próximo middleware
