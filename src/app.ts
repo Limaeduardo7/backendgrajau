@@ -154,12 +154,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true })
 app.use(apiPrefixMiddleware);
 
 // Rota de status
-app.get('/status', (req, res) => {
+app.get('/api/status', (req, res) => {
   res.status(200).json({ status: 'online', timestamp: new Date().toISOString() });
 });
 
 // Rota para a página de recuperação de autenticação
-app.get('/auth-recovery', (req, res) => {
+app.get('/api/auth-recovery', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'auth-recovery-page.html'));
 });
 
