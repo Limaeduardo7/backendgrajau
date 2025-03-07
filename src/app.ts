@@ -73,9 +73,15 @@ app.use(cors({
     'Authorization',
     'X-Clerk-Auth',
     'Clerk-Frontend-API',
-    'X-Auth-Token'
+    'X-Auth-Token',
+    // Cabeçalhos personalizados
+    'X-User-ID',
+    'X-User-Email',
+    'X-User-Role',
+    'X-Original-User-ID'
   ],
-  exposedHeaders: ['Content-Length', 'Content-Type']
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  maxAge: 86400 // 24 horas em segundos
 }));
 
 // Rate limiting com configuração mais segura
