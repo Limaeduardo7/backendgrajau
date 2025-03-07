@@ -319,6 +319,164 @@ router.use('/applications', applicationRoutes);
 // Rotas de auditoria
 router.use('/audit', auditRoutes);
 
+// Rota para empresas aprovadas
+router.get('/businesses/approved', (req: Request, res: Response) => {
+  console.log('Acessando rota de empresas aprovadas no arquivo index.ts');
+  
+  // Obter parâmetros de paginação
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  
+  // Dados de exemplo para empresas aprovadas
+  res.json({
+    items: [
+      { 
+        id: "4", 
+        name: "Padaria Pão Quente", 
+        email: "contato@paoquente.com",
+        phone: "21987654322",
+        address: "Av. Engenheiro Richard, 25",
+        description: "Padaria tradicional do bairro desde 1980",
+        category: "Alimentação",
+        status: "approved",
+        featured: true,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      { 
+        id: "5", 
+        name: "Mercado do João", 
+        email: "contato@mercadojoao.com",
+        phone: "21998765433",
+        address: "Rua Borda do Mato, 120",
+        description: "Mercadinho de bairro com produtos frescos e preços acessíveis",
+        category: "Varejo",
+        status: "approved",
+        featured: false,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 172800000).toISOString()
+      },
+      { 
+        id: "6", 
+        name: "Academia Fitness Total", 
+        email: "contato@fitnesstotal.com",
+        phone: "21987654124",
+        address: "Rua Visconde de Santa Isabel, 55",
+        description: "Academia completa com musculação e aulas coletivas",
+        category: "Esportes",
+        status: "approved",
+        featured: true,
+        createdAt: new Date(Date.now() - 259200000).toISOString(),
+        updatedAt: new Date(Date.now() - 259200000).toISOString()
+      }
+    ],
+    total: 3,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
+});
+
+// Rota para empresas rejeitadas
+router.get('/businesses/rejected', (req: Request, res: Response) => {
+  console.log('Acessando rota de empresas rejeitadas no arquivo index.ts');
+  
+  // Obter parâmetros de paginação
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  
+  // Dados de exemplo para empresas rejeitadas
+  res.json({
+    items: [
+      { 
+        id: "7", 
+        name: "Empresa Inválida Ltda", 
+        email: "contato@invalida.com",
+        phone: "21999999999",
+        address: "Endereço não confirmado, 0",
+        description: "Empresa sem documentação completa",
+        category: "Serviços",
+        status: "rejected",
+        featured: false,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 43200000).toISOString(),
+        rejectionReason: "Documentação incompleta"
+      },
+      { 
+        id: "8", 
+        name: "Negócio Suspeito", 
+        email: "contato@suspeito.com",
+        phone: "21988888888",
+        address: "Rua Desconhecida, 999",
+        description: "Atividade não identificada corretamente",
+        category: "Outros",
+        status: "rejected",
+        featured: false,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        rejectionReason: "Informações inconsistentes"
+      }
+    ],
+    total: 2,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
+});
+
+// Rota para profissionais rejeitados
+router.get('/professionals/rejected', (req: Request, res: Response) => {
+  console.log('Acessando rota de profissionais rejeitados no arquivo index.ts');
+  
+  // Obter parâmetros de paginação
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  
+  // Dados de exemplo para profissionais rejeitados
+  res.json({
+    items: [
+      {
+        id: "4",
+        name: "Roberto Pereira",
+        email: "roberto@example.com",
+        phone: "21987654321",
+        occupation: "Consultor Falso",
+        specialties: ["Serviços inexistentes"],
+        experience: "Sem comprovação",
+        education: ["Diploma não verificado"],
+        certifications: [],
+        portfolio: [],
+        status: "rejected",
+        featured: false,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 43200000).toISOString(),
+        rejectionReason: "Certificações não verificadas"
+      },
+      {
+        id: "5",
+        name: "Ana Paula Silva",
+        email: "anapaula@example.com",
+        phone: "21976543210",
+        occupation: "Médica",
+        specialties: ["Sem CRM"],
+        experience: "Experiência não comprovada",
+        education: ["Certificados não validados"],
+        certifications: [],
+        portfolio: [],
+        status: "rejected",
+        featured: false,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        rejectionReason: "Documentação profissional insuficiente"
+      }
+    ],
+    total: 2,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
+});
+
 // Aqui serão adicionadas as demais rotas
 // router.use('/admin', adminRoutes);
 
