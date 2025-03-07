@@ -54,4 +54,7 @@ router.post('/posts/:postId/comments', requireAuth, blogController.addComment);
 router.get('/posts/:postId/comments', blogController.getCommentsByPostId);
 router.delete('/comments/:id', requireAuth, blogController.removeComment);
 
+// Rota para obter posts em rascunho (acesso administrativo)
+router.get('/posts/drafts', requireAuth, blogController.getDraftPosts);
+
 export default router; 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BlogService } from '../services/blog.service';
 import { ApiError } from '../utils/ApiError';
+import prisma from '../config/prisma';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
@@ -18,6 +19,60 @@ export class BlogController {
   constructor() {
     this.blogService = new BlogService();
   }
+
+  // Método para obter posts em rascunho (não publicados)
+  getDraftPosts = async (req: AuthRequest, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+      
+      // Verificar se o usuário é admin (caso o middleware não esteja sendo usado)
+      if (!req.user || (req.user.role !== 'ADMIN' && req.user.email !== 'anunciargrajau@gmail.com')) {
+        return res.status(403).json({ error: 'Acesso não autorizado' });
+      }
+      
+      const posts = await prisma.blogPost.findMany({
+        where: {
+          published: false
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          category: true
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+      
+      const total = await prisma.blogPost.count({
+        where: {
+          published: false
+        }
+      });
+      
+      const totalPages = Math.ceil(total / limit);
+      
+      return res.json({
+        posts,
+        total,
+        page,
+        limit,
+        totalPages
+      });
+    } catch (error) {
+      console.error("Erro ao obter posts em rascunho:", error);
+      return res.status(500).json({ error: "Erro ao obter posts em rascunho" });
+    }
+  };
 
   list = async (req: Request, res: Response) => {
     try {

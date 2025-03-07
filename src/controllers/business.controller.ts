@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { BusinessService } from '../services/business.service';
 import { ApiError } from '../utils/ApiError';
 import logger from '../config/logger';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export class BusinessController {
   private businessService: BusinessService;
@@ -174,36 +177,60 @@ export class BusinessController {
 
   getPendingBusinesses = async (req: Request, res: Response) => {
     try {
-      const { page = 1, limit = 10 } = req.query;
-      const userId = req.user?.id;
-      const isAdmin = req.user?.role === 'ADMIN';
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
       
-      if (!isAdmin) {
-        return res.status(403).json({ error: 'Acesso negado - somente administradores podem acessar esta rota' });
-      }
-      
-      logger.info(`Listando empresas pendentes (página ${page}, limite ${limit})`);
-      
-      const result = await this.businessService.listByStatus({
-        status: 'PENDING',
-        page: Number(page),
-        limit: Number(limit)
+      // Buscar empresas pendentes
+      const businesses = await prisma.business.findMany({
+        where: {
+          status: 'PENDING'
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          description: true,
+          photos: true,
+          website: true,
+          socialMedia: true,
+          category: true,
+          status: true,
+          featured: true,
+          createdAt: true,
+          updatedAt: true
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc'
+        }
       });
+      
+      // Contar total
+      const total = await prisma.business.count({
+        where: {
+          status: 'PENDING'
+        }
+      });
+      
+      const totalPages = Math.ceil(total / limit);
       
       return res.json({
-        businesses: result.businesses || [],
-        total: result.total || 0,
-        page: result.page || 1,
-        pages: result.pages || 0,
-        limit: result.limit || 10
+        items: businesses.map(b => ({
+          ...b,
+          status: b.status.toLowerCase()
+        })),
+        total,
+        page,
+        limit,
+        totalPages
       });
     } catch (error) {
-      logger.error('Erro ao listar empresas pendentes:', error);
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
+      console.error("Erro ao obter empresas pendentes:", error);
+      return res.status(500).json({ error: "Erro ao obter empresas pendentes" });
     }
   };
 } 

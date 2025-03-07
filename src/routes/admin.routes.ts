@@ -51,6 +51,13 @@ router.get('/applications-stats', ...adminAuth, adminController.getApplicationsS
 router.get('/users-stats', ...adminAuth, adminController.getUsersStats);
 router.get('/content-stats', ...adminAuth, adminController.getContentStats);
 
+// Novas rotas para o painel administrativo
+router.get('/dashboard/stats', ...adminAuth, adminController.getDashboardStats);
+router.get('/dashboard/users', ...adminAuth, adminController.getUserStats);
+router.get('/dashboard/content', ...adminAuth, adminController.getContentStats);
+router.get('/submissions', ...adminAuth, adminController.getSubmissions);
+router.get('/dashboard/pending-approvals', ...adminAuth, adminController.getPendingApprovals);
+
 // Gerenciamento de usuários
 router.get('/users', ...adminAuth, adminController.getUsers);
 

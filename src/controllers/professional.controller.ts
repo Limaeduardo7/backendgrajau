@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { ProfessionalService } from '../services/professional.service';
 import { ApiError } from '../utils/ApiError';
 import logger from '../config/logger';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export class ProfessionalController {
   private professionalService: ProfessionalService;
@@ -189,37 +192,83 @@ export class ProfessionalController {
 
   getPendingProfessionals = async (req: Request, res: Response) => {
     try {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 10;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
       
-      const user = req.user;
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(403).json({ message: 'Não autorizado. Acesso apenas para administradores.' });
-      }
-      
-      logger.info(`Buscando profissionais com status PENDING (${page}/${limit})`);
-      
-      const result = await this.professionalService.listByStatus({
-        status: 'PENDING',
-        page,
-        limit
+      // Buscar profissionais pendentes
+      const professionals = await prisma.professional.findMany({
+        where: {
+          status: 'PENDING'
+        },
+        select: {
+          id: true,
+          occupation: true,
+          specialties: true,
+          experience: true,
+          education: true,
+          certifications: true,
+          portfolio: true,
+          availability: true,
+          hourlyRate: true,
+          about: true,
+          status: true,
+          featured: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          }
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc'
+        }
       });
+      
+      // Transformar os dados para o formato esperado
+      const items = professionals.map(p => ({
+        id: p.id,
+        name: p.user?.name || '',
+        email: p.user?.email || '',
+        phone: p.user?.phone || '',
+        occupation: p.occupation,
+        specialties: p.specialties,
+        experience: p.experience,
+        education: p.education,
+        certifications: p.certifications,
+        portfolio: p.portfolio,
+        status: p.status.toLowerCase(),
+        featured: p.featured,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      }));
+      
+      // Contar total
+      const total = await prisma.professional.count({
+        where: {
+          status: 'PENDING'
+        }
+      });
+      
+      const totalPages = Math.ceil(total / limit);
       
       return res.json({
-        professionals: result.professionals || [],
-        total: result.total || 0,
-        page: result.page || 1,
-        pages: result.pages || 0,
-        limit: result.limit || 10
+        items,
+        total,
+        page,
+        limit,
+        totalPages
       });
     } catch (error) {
-      logger.error('Erro ao buscar profissionais pendentes:', error);
-      
-      if (error instanceof Error) {
-        return res.status(500).json({ message: error.message });
-      }
-      
-      return res.status(500).json({ message: 'Erro interno do servidor' });
+      console.error("Erro ao obter profissionais pendentes:", error);
+      return res.status(500).json({ error: "Erro ao obter profissionais pendentes" });
     }
   };
 } 

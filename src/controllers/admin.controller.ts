@@ -19,6 +19,260 @@ interface AuthRequest extends Request {
 }
 
 class AdminController {
+  // Estatísticas do Dashboard
+  getDashboardStats = async (req: Request, res: Response) => {
+    try {
+      const totalUsers = await prisma.user.count();
+      const totalBusinesses = await prisma.business.count();
+      const totalJobs = await prisma.job.count();
+      const totalProfessionals = await prisma.professional.count();
+      const totalPosts = await prisma.blogPost.count();
+
+      return res.json({
+        totalUsers,
+        totalBusinesses,
+        totalJobs,
+        totalProfessionals,
+        totalPosts
+      });
+    } catch (error) {
+      console.error("Erro ao obter estatísticas do dashboard:", error);
+      return res.status(500).json({ error: "Erro ao obter estatísticas" });
+    }
+  };
+  
+  // Estatísticas de usuários
+  getUserStats = async (req: Request, res: Response) => {
+    try {
+      const period = req.query.period as string || 'month';
+      const now = new Date();
+      let startDate = new Date();
+      
+      // Configurar a data de início com base no período
+      if (period === 'week') {
+        startDate.setDate(now.getDate() - 7);
+      } else if (period === 'month') {
+        startDate.setMonth(now.getMonth() - 1);
+      } else if (period === 'year') {
+        startDate.setFullYear(now.getFullYear() - 1);
+      }
+      
+      const totalUsers = await prisma.user.count();
+      const newUsers = await prisma.user.count({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      // Calcular usuários ativos (exemplo: usuários que fizeram login no período)
+      const activeUsers = await prisma.user.count({
+        where: {
+          updatedAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      // Calcular crescimento
+      const previousPeriodStart = new Date(startDate);
+      if (period === 'week') {
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
+      } else if (period === 'month') {
+        previousPeriodStart.setMonth(previousPeriodStart.getMonth() - 1);
+      } else if (period === 'year') {
+        previousPeriodStart.setFullYear(previousPeriodStart.getFullYear() - 1);
+      }
+      
+      const previousPeriodUsers = await prisma.user.count({
+        where: {
+          createdAt: {
+            gte: previousPeriodStart,
+            lt: startDate
+          }
+        }
+      });
+      
+      const growth = previousPeriodUsers > 0 
+        ? (newUsers - previousPeriodUsers) / previousPeriodUsers 
+        : 0;
+      
+      return res.json({
+        totalUsers,
+        newUsers,
+        activeUsers,
+        growth
+      });
+    } catch (error) {
+      console.error("Erro ao obter estatísticas de usuários:", error);
+      return res.status(500).json({ error: "Erro ao obter estatísticas de usuários" });
+    }
+  };
+
+  // Estatísticas de conteúdo
+  getContentStats = async (req: Request, res: Response) => {
+    try {
+      const period = req.query.period as string || 'month';
+      const now = new Date();
+      let startDate = new Date();
+      
+      // Configurar a data de início com base no período
+      if (period === 'week') {
+        startDate.setDate(now.getDate() - 7);
+      } else if (period === 'month') {
+        startDate.setMonth(now.getMonth() - 1);
+      } else if (period === 'year') {
+        startDate.setFullYear(now.getFullYear() - 1);
+      }
+      
+      // Obter contagem total de cada tipo de conteúdo
+      const totalBusinesses = await prisma.business.count();
+      const totalJobs = await prisma.job.count();
+      const totalProfessionals = await prisma.professional.count();
+      const totalPosts = await prisma.blogPost.count();
+      
+      // Obter contagem de novos conteúdos no período
+      const newBusinesses = await prisma.business.count({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      const newJobs = await prisma.job.count({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      const newProfessionals = await prisma.professional.count({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      const newPosts = await prisma.blogPost.count({
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      });
+      
+      return res.json({
+        totalBusinesses,
+        totalJobs,
+        totalProfessionals,
+        totalPosts,
+        newBusinesses,
+        newJobs,
+        newProfessionals,
+        newPosts
+      });
+    } catch (error) {
+      console.error("Erro ao obter estatísticas de conteúdo:", error);
+      return res.status(500).json({ error: "Erro ao obter estatísticas de conteúdo" });
+    }
+  };
+
+  // Listar submissões pendentes
+  getSubmissions = async (req: Request, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const status = (req.query.status as string) || 'pending';
+      const skip = (page - 1) * limit;
+      
+      // Obter submissões de diferentes tipos (empresas, vagas, profissionais)
+      const businessSubmissions = await prisma.business.findMany({
+        where: {
+          status: status.toUpperCase() as Status
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true
+        },
+        skip,
+        take: limit
+      });
+      
+      // Transformar em formato consistente
+      const submissions = businessSubmissions.map(business => ({
+        id: business.id,
+        type: 'business',
+        name: business.name,
+        email: business.email,
+        status: business.status.toLowerCase(),
+        submittedAt: business.createdAt,
+        reviewedAt: business.updatedAt !== business.createdAt ? business.updatedAt : null
+      }));
+      
+      // Contar total
+      const total = await prisma.business.count({
+        where: {
+          status: status.toUpperCase() as Status
+        }
+      });
+      
+      const totalPages = Math.ceil(total / limit);
+      
+      return res.json({
+        submissions,
+        total,
+        page,
+        limit,
+        totalPages
+      });
+    } catch (error) {
+      console.error("Erro ao obter submissões:", error);
+      return res.status(500).json({ error: "Erro ao obter submissões" });
+    }
+  };
+
+  // Listar aprovações pendentes para o dashboard
+  getPendingApprovals = async (req: Request, res: Response) => {
+    try {
+      // Contar aprovações pendentes por tipo
+      const pendingBusinesses = await prisma.business.count({
+        where: { status: 'PENDING' }
+      });
+      
+      const pendingJobs = await prisma.job.count({
+        where: { status: 'PENDING' }
+      });
+      
+      const pendingProfessionals = await prisma.professional.count({
+        where: { status: 'PENDING' }
+      });
+      
+      // Contar comentários (sem filtro de status, já que não existe esse campo)
+      const pendingComments = await prisma.comment.count();
+      
+      return res.json({
+        counts: {
+          businesses: pendingBusinesses,
+          jobs: pendingJobs,
+          professionals: pendingProfessionals,
+          comments: pendingComments
+        },
+        total: pendingBusinesses + pendingJobs + pendingProfessionals + pendingComments
+      });
+    } catch (error) {
+      console.error("Erro ao obter aprovações pendentes:", error);
+      return res.status(500).json({ error: "Erro ao obter aprovações pendentes" });
+    }
+  };
+
   // Dashboard e estatísticas
   getStats = async (req: Request, res: Response) => {
     try {
@@ -1073,62 +1327,6 @@ class AdminController {
       });
     }
   };
-
-  async getContentStats(req: Request, res: Response) {
-    try {
-      logger.info('Obtendo estatísticas de conteúdo');
-      
-      // Buscar estatísticas dos blogs
-      const totalBlogs = await prisma.blogPost.count();
-      const publishedBlogs = await prisma.blogPost.count({
-        where: { published: true }
-      });
-      const pendingBlogs = await prisma.blogPost.count({
-        where: { published: false }
-      });
-      
-      // Buscar estatísticas dos jobs
-      const totalJobs = await prisma.job.count();
-      const activeJobs = await prisma.job.count({
-        where: { status: 'APPROVED' }
-      });
-      const pendingJobs = await prisma.job.count({
-        where: { status: 'PENDING' }
-      });
-      
-      // Buscar estatísticas das aplicações
-      const totalApplications = await prisma.application.count();
-      
-      // Buscar estatísticas de usuários
-      const totalUsers = await prisma.user.count();
-      const totalProfessionals = await prisma.professional.count();
-      const totalBusinesses = await prisma.business.count();
-      
-      return res.json({
-        blogs: {
-          total: totalBlogs,
-          published: publishedBlogs,
-          pending: pendingBlogs
-        },
-        jobs: {
-          total: totalJobs,
-          active: activeJobs,
-          pending: pendingJobs
-        },
-        applications: {
-          total: totalApplications
-        },
-        users: {
-          total: totalUsers,
-          professionals: totalProfessionals,
-          businesses: totalBusinesses
-        }
-      });
-    } catch (error) {
-      logger.error('Erro ao obter estatísticas de conteúdo:', error);
-      return res.status(500).json({ message: 'Erro ao obter estatísticas de conteúdo' });
-    }
-  }
 }
 
 export default new AdminController(); 
