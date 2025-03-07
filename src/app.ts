@@ -54,22 +54,26 @@ app.use(helmet({
 // Configuração CORS - reposicionada após configurações de segurança
 app.use(cors({
   origin: [
-    'https://anunciargrajaueregiao.com', 
-    'https://www.anunciargrajaueregiao.com', 
+    'https://anunciargrajaueregiao.com',
+    'https://www.anunciargrajaueregiao.com',
     'https://admin.anunciargrajaueregiao.com',
-    'http://localhost:3000', 
-    'http://localhost:5173'
+    'https://dashboard.anunciargrajaueregiao.com',
+    'https://api.anunciargrajaueregiao.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
-    'Origin', 
-    'X-Requested-With', 
-    'Content-Type', 
-    'Accept', 
-    'Authorization', 
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
     'X-Clerk-Auth',
-    'Clerk-Frontend-API'
+    'Clerk-Frontend-API',
+    'X-Auth-Token'
   ],
   exposedHeaders: ['Content-Length', 'Content-Type']
 }));
