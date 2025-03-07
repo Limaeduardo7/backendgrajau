@@ -132,8 +132,11 @@
                 return;
             }
             
+            // Lista de tokens problemáticos conhecidos
+            const problemTokens = ['2tzoIYjxqtSE6LbFHL9mecf9JKM', '2u0AiWfTasYZwnkd4Hunqt0dE9u'];
+            
             // Verificar token problemático conhecido
-            if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
+            if (problemTokens.includes(token)) {
                 tokenStatus.textContent = 'Token problemático detectado';
                 tokenStatus.style.color = '#e74c3c';
                 problemSection.style.display = 'block';

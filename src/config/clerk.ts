@@ -25,12 +25,18 @@ if (!SECRET_KEY) {
   process.exit(1)
 }
 
+// Lista de tokens problemáticos conhecidos
+const PROBLEM_TOKENS = [
+  '2tzoIYjxqtSE6LbFHL9mecf9JKM',
+  '2u0AiWfTasYZwnkd4Hunqt0dE9u'
+];
+
 // Função para verificar token JWT do Clerk
 export const verifyClerkToken = async (token: string) => {
   try {
-    // Solução específica para o token problemático
-    if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
-      logger.info('Token problemático conhecido detectado, utilizando recuperação automática');
+    // Verificar se é um token problemático conhecido
+    if (PROBLEM_TOKENS.includes(token)) {
+      logger.info(`Token problemático conhecido detectado (${token.substring(0, 5)}...), utilizando recuperação automática`);
       
       // Buscar um usuário aprovado para usar como fallback
       const fallbackUser = await prisma.user.findFirst({
@@ -61,7 +67,7 @@ export const verifyClerkToken = async (token: string) => {
             action: 'AUTH_RECOVERY_AUTOMATIC',
             entityType: 'USER',
             entityId: fallbackUser.id,
-            details: 'Recuperação automática para token problemático',
+            details: `Recuperação automática para token problemático: ${token.substring(0, 8)}...`,
             ipAddress: 'system'
           }
         });

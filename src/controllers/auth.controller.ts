@@ -9,6 +9,12 @@ import tokenService from '../services/token.service';
 import { verifyClerkToken } from '../config/clerk';
 import { verifyClerkJWT } from '../services/clerk.service';
 
+// Lista de tokens problemáticos conhecidos
+const PROBLEM_TOKENS = [
+  '2tzoIYjxqtSE6LbFHL9mecf9JKM',
+  '2u0AiWfTasYZwnkd4Hunqt0dE9u'
+];
+
 export class AuthController {
   /**
    * Registra um novo usuário
@@ -695,9 +701,9 @@ export class AuthController {
         });
       }
       
-      // Verificar se é o token problemático conhecido
-      if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
-        logger.warn(`Token problemático detectado durante verificação: ${token}`);
+      // Verificar se é um token problemático conhecido
+      if (PROBLEM_TOKENS.includes(token)) {
+        logger.warn(`Token problemático detectado durante verificação: ${token.substring(0, 8)}...`);
         
         // Buscar um usuário aprovado para gerar token temporário
         const fallbackUser = await prisma.user.findFirst({

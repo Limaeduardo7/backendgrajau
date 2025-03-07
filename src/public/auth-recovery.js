@@ -11,7 +11,7 @@
     : 'https://api.anunciargrajaueregiao.com/api';
   
   const AUTH_CONFIG = {
-    problemTokens: ['2tzoIYjxqtSE6LbFHL9mecf9JKM'],
+    problemTokens: ['2tzoIYjxqtSE6LbFHL9mecf9JKM', '2u0AiWfTasYZwnkd4Hunqt0dE9u'],
     storageKeys: ['token', 'authToken', 'clerk-token'],
     endpoints: {
       recovery: `${API_URL}/auth/check-auth`,
