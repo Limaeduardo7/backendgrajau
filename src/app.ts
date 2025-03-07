@@ -136,7 +136,7 @@ app.use(limiter);
 app.use(express.json());
 
 // Servir arquivos estáticos da pasta public
-app.use(express.static('src/public'));
+app.use('/api', express.static(path.join(__dirname, 'public')));
 
 // Middleware de recuperação de sessão (antes de morgan para capturar problemas de autenticação)
 app.use(sessionRecoveryMiddleware);

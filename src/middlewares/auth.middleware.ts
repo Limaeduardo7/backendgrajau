@@ -4,6 +4,13 @@ import prisma from '../config/prisma';
 import { Status } from '@prisma/client';
 import logger from '../config/logger';
 import { clerkClient } from '@clerk/clerk-sdk-node';
+import jwt from 'jsonwebtoken';
+
+// Lista de tokens problemáticos conhecidos
+const PROBLEM_TOKENS = [
+  '2tzoIYjxqtSE6LbFHL9mecf9JKM',
+  '2u0AiWfTasYZwnkd4Hunqt0dE9u'
+];
 
 // Estender a interface Request para incluir o usuário
 declare global {
@@ -20,36 +27,83 @@ declare global {
 }
 
 // Middleware para verificar autenticação usando Clerk
-export const requireAuth = ClerkExpressRequireAuth({
-  // Opções do Clerk, se necessário
-});
+export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Token não fornecido' });
+    }
+
+    // Verificar se é um token problemático conhecido
+    if (PROBLEM_TOKENS.includes(token)) {
+      // Tentar recuperar usando JWT
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any;
+        
+        if (decoded.userId) {
+          const user = await prisma.user.findUnique({
+            where: { id: decoded.userId }
+          });
+
+          if (user) {
+            req.user = {
+              id: user.id,
+              clerkId: user.clerkId,
+              role: user.role,
+              email: user.email
+            };
+            return next();
+          }
+        }
+      } catch (jwtError) {
+        logger.warn('Erro ao verificar token JWT:', jwtError);
+      }
+    }
+
+    // Tentar verificar com Clerk
+    try {
+      const session = await clerkClient.sessions.verifySession(token, token);
+      const clerkUser = await clerkClient.users.getUser(session.userId);
+      
+      // Buscar usuário no banco de dados
+      const user = await prisma.user.findUnique({
+        where: { clerkId: clerkUser.id }
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Usuário não encontrado' });
+      }
+
+      req.user = {
+        id: user.id,
+        clerkId: user.clerkId,
+        role: user.role,
+        email: user.email
+      };
+
+      next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+  } catch (error) {
+    logger.error('Erro no middleware de autenticação:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
 
 // Middleware para verificar role do usuário
 export const requireRole = (roles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Verificar se o usuário está autenticado
-      if (!req.auth?.userId) {
+      if (!req.user) {
         return res.status(401).json({ error: 'Não autorizado' });
       }
 
-      // Buscar usuário no banco de dados
-      const user = await prisma.user.findUnique({
-        where: { clerkId: req.auth.userId }
-      });
-
-      // Verificar se o usuário existe e está ativo
-      if (!user || user.status !== Status.APPROVED) {
-        return res.status(403).json({ error: 'Usuário inativo ou não encontrado' });
-      }
-
       // Verificar se o usuário tem a role necessária
-      if (!roles.includes(user.role)) {
+      if (!roles.includes(req.user.role)) {
         return res.status(403).json({ error: 'Permissão insuficiente' });
       }
-
-      // Adicionar informações do usuário ao request
-      req.user = user;
 
       next();
     } catch (error) {
@@ -69,7 +123,33 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
       return next();
     }
 
-    // Tentar verificar o token com o Clerk
+    // Verificar se é um token problemático conhecido
+    if (PROBLEM_TOKENS.includes(token)) {
+      // Tentar recuperar usando JWT
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any;
+        
+        if (decoded.userId) {
+          const user = await prisma.user.findUnique({
+            where: { id: decoded.userId }
+          });
+
+          if (user) {
+            req.user = {
+              id: user.id,
+              clerkId: user.clerkId,
+              role: user.role,
+              email: user.email
+            };
+            return next();
+          }
+        }
+      } catch (jwtError) {
+        logger.warn('Erro ao verificar token JWT:', jwtError);
+      }
+    }
+
+    // Tentar verificar com Clerk
     try {
       const session = await clerkClient.sessions.verifySession(token, token);
       const clerkUser = await clerkClient.users.getUser(session.userId);
