@@ -135,20 +135,11 @@ app.use(limiter);
 // Middlewares
 app.use(express.json());
 
-// Servir arquivos estáticos da pasta public
-app.use('/api', express.static(path.join(__dirname, 'public')));
-
 // Middleware de recuperação de sessão (antes de morgan para capturar problemas de autenticação)
 app.use(sessionRecoveryMiddleware);
 
-// Configurar Morgan para usar o logger Winston
-app.use(morgan('combined', {
-  stream: {
-    write: (message: string) => {
-      logger.http(message.trim());
-    },
-  },
-}));
+// Servir arquivos estáticos da pasta public
+app.use('/api', express.static(path.join(__dirname, 'public')));
 
 // Middleware de logging personalizado
 app.use(logRequest);

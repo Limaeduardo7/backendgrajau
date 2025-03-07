@@ -1,16 +1,12 @@
-import { clerkClient } from '@clerk/clerk-sdk-node'
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
-// Verificar variáveis de ambiente necessárias
+// Verificar se a chave secreta do Clerk está configurada
 if (!process.env.CLERK_SECRET_KEY) {
-  throw new Error('CLERK_SECRET_KEY não está definida no arquivo .env')
-}
-
-if (!process.env.CLERK_WEBHOOK_SECRET) {
-  throw new Error('CLERK_WEBHOOK_SECRET não está definida no arquivo .env')
+  throw new Error('CLERK_SECRET_KEY não configurada');
 }
 
 // Exportar cliente do Clerk para uso em toda a aplicação
-export const clerk = clerkClient
+export default clerkClient;
 
 // Exportar constantes do Clerk
 export const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
