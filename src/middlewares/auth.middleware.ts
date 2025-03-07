@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ClerkExpressRequireAuth } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
 import { Status } from '@prisma/client';
+import logger from '../config/logger';
 
 // Estender a interface Request para incluir o usuário
 declare global {
