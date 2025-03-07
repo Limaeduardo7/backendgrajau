@@ -3,6 +3,7 @@ import { ClerkExpressRequireAuth } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
 import { Status } from '@prisma/client';
 import logger from '../config/logger';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
 // Estender a interface Request para incluir o usuário
 declare global {
@@ -68,20 +69,14 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
       return next();
     }
 
-    // Verificar se o token está revogado
-    if (tokenService.isTokenRevoked(token)) {
-      req.user = undefined;
-      return next();
-    }
-
-    // Tentar autenticar com o token disponível
+    // Tentar verificar o token com o Clerk
     try {
-      // Verificar o token (função atualizada que suporta ambos os formatos)
-      const userData = await verifyClerkToken(token);
+      const session = await clerkClient.sessions.verifySession(token, token);
+      const clerkUser = await clerkClient.users.getUser(session.userId);
       
       // Buscar usuário no banco de dados
       const user = await prisma.user.findUnique({
-        where: { clerkId: userData.clerkId },
+        where: { clerkId: clerkUser.id }
       });
 
       if (user) {

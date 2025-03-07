@@ -17,9 +17,7 @@ router.post('/webhook', authController.webhook);
 router.get('/me', requireAuth, authController.getMe);
 router.patch('/profile', requireAuth, authController.updateProfile);
 
-// Rotas de gerenciamento de tokens
-router.post('/renew-token', requireAuth, tokenController.renewToken);
-router.post('/revoke-token', requireAuth, tokenController.revokeToken);
+// Validação de token
 router.get('/validate-token', requireAuth, tokenController.validateToken);
 
 // Rota para geração de tokens de recuperação (apenas para administradores)

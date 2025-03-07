@@ -630,7 +630,7 @@ export class AuthController {
         return res.status(403).json({ error: 'Não autorizado' });
       }
       
-      const { userId, duration } = req.body;
+      const { userId } = req.body;
       
       if (!userId) {
         return res.status(400).json({ error: 'ID do usuário é obrigatório' });
@@ -645,14 +645,12 @@ export class AuthController {
         logger.warn(`Tentativa de gerar token para usuário inexistente: ${userId}`);
         return res.status(404).json({ error: 'Usuário não encontrado' });
       }
-      
-      // Gerar token de recuperação
-      const recoveryToken = tokenService.generateRecoveryToken(
-        user.id, 
-        user.email, 
-        user.role, 
-        duration || 30 // Duração padrão de 30 minutos
-      );
+
+      // Criar uma nova sessão no Clerk para o usuário
+      const session = await clerkClient.sessions.createSession({
+        userId: user.clerkId,
+        expireInSeconds: 1800 // 30 minutos
+      });
       
       // Registrar a ação no log de auditoria
       await prisma.auditLog.create({
@@ -670,7 +668,7 @@ export class AuthController {
       
       return res.status(200).json({
         message: 'Token de recuperação gerado com sucesso',
-        token: recoveryToken,
+        token: session.id,
         user: {
           id: user.id,
           name: user.name,
@@ -728,13 +726,11 @@ export class AuthController {
           });
         }
         
-        // Gerar um token temporário para este usuário
-        const temporaryToken = tokenService.generateRecoveryToken(
-          fallbackUser.id,
-          fallbackUser.email,
-          fallbackUser.role,
-          60 // 60 minutos
-        );
+        // Criar uma nova sessão no Clerk para o usuário fallback
+        const session = await clerkClient.sessions.createSession({
+          userId: fallbackUser.clerkId,
+          expireInSeconds: 3600 // 1 hora
+        });
         
         // Registrar a recuperação no log de auditoria
         try {
@@ -757,7 +753,7 @@ export class AuthController {
         return res.status(200).json({
           status: 'success',
           message: 'Token problemático detectado. Gerado token temporário de recuperação.',
-          temporaryToken,
+          temporaryToken: session.id,
           expiresIn: '60 minutos',
           user: {
             id: fallbackUser.id,
@@ -767,35 +763,14 @@ export class AuthController {
         });
       }
       
-      // Tentar verificar o token normalmente
+      // Tentar verificar o token com o Clerk
       try {
-        // Primeiro tentar como JWT
-        if (token.includes('.') && !token.startsWith('clerk_token_') && !token.startsWith('clerk_recovery_')) {
-          try {
-            const userData = await verifyClerkJWT(token);
-            return res.status(200).json({
-              status: 'success',
-              message: 'Token JWT válido',
-              valid: true,
-              user: {
-                id: userData.userId,
-                clerkId: userData.clerkId,
-                role: userData.role,
-                email: userData.email
-              }
-            });
-          } catch (jwtError) {
-            // Continuar para verificação legada
-            logger.debug('Verificação JWT falhou, tentando método legado');
-          }
-        }
-        
-        // Tentar como token personalizado
-        const userData = await verifyClerkToken(token);
+        const session = await clerkClient.sessions.verifySession(token, token);
+        const clerkUser = await clerkClient.users.getUser(session.userId);
         
         // Buscar usuário no banco de dados
         const user = await prisma.user.findUnique({
-          where: { clerkId: userData.clerkId },
+          where: { clerkId: clerkUser.id },
         });
         
         if (!user) {
