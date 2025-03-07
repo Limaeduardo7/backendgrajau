@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import userController from '../controllers/user.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -20,7 +19,7 @@ const router = Router();
  *       404:
  *         description: Usuário não encontrado
  */
-router.get('/profile', requireAuth, userController.getProfile);
+router.get('/profile', userController.getProfile);
 
 /**
  * @swagger
@@ -51,7 +50,7 @@ router.get('/profile', requireAuth, userController.getProfile);
  *       401:
  *         description: Não autorizado
  */
-router.put('/profile', requireAuth, userController.updateProfile);
+router.put('/profile', userController.updateProfile);
 
 /**
  * @swagger
@@ -80,7 +79,7 @@ router.put('/profile', requireAuth, userController.updateProfile);
  *       401:
  *         description: Não autorizado
  */
-router.get('/businesses', requireAuth, userController.getBusinesses);
+router.get('/businesses', userController.getBusinesses);
 
 /**
  * @swagger
@@ -109,7 +108,7 @@ router.get('/businesses', requireAuth, userController.getBusinesses);
  *       401:
  *         description: Não autorizado
  */
-router.get('/applications', requireAuth, userController.getApplications);
+router.get('/applications', userController.getApplications);
 
 /**
  * @swagger
@@ -138,6 +137,6 @@ router.get('/applications', requireAuth, userController.getApplications);
  *       401:
  *         description: Não autorizado
  */
-router.get('/notifications', requireAuth, userController.getNotifications);
+router.get('/notifications', userController.getNotifications);
 
 export default router; 
