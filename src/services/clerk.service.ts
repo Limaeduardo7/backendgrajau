@@ -1,12 +1,41 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
 import { Status } from '@prisma/client';
+import * as jwt from 'jsonwebtoken';
+import axios from 'axios';
+
+// Cache para as chaves públicas do Clerk
+let jwksCache: any = null;
+let jwksCacheTime = 0;
+const JWKS_CACHE_TTL = 3600000; // 1 hora
 
 // Configuração da URL do conjunto de chaves JWKS do Clerk
 const CLERK_ISSUER = process.env.CLERK_ISSUER || 'https://clerk.anunciargrajaueregiao.com';
 const CLERK_JWKS_URL = `${CLERK_ISSUER}/.well-known/jwks.json`;
-const jwks = createRemoteJWKSet(new URL(CLERK_JWKS_URL));
+
+// Função para obter as chaves JWKS do Clerk
+async function getJwks() {
+  // Verificar se o cache ainda é válido
+  if (jwksCache && (Date.now() - jwksCacheTime < JWKS_CACHE_TTL)) {
+    return jwksCache;
+  }
+
+  try {
+    const response = await axios.get(CLERK_JWKS_URL);
+    jwksCache = response.data;
+    jwksCacheTime = Date.now();
+    return jwksCache;
+  } catch (error) {
+    logger.error('Erro ao buscar JWKS do Clerk:', error);
+    throw new Error('Não foi possível obter as chaves de verificação');
+  }
+}
+
+// Função para encontrar a chave pública correta para verificar o token
+function findKey(jwks: any, kid: string) {
+  const keys = jwks.keys.filter((key: any) => key.kid === kid);
+  return keys[0];
+}
 
 /**
  * Verifica um JWT emitido pelo Clerk
@@ -15,11 +44,39 @@ const jwks = createRemoteJWKSet(new URL(CLERK_JWKS_URL));
  */
 export async function verifyClerkJWT(token: string) {
   try {
-    // Verificar assinatura e claims do JWT
-    const { payload } = await jwtVerify(token, jwks, {
+    // Decodificar o cabeçalho do token para obter o kid
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Formato de token inválido');
+    }
+    
+    const header = JSON.parse(Buffer.from(parts[0], 'base64').toString());
+    const kid = header.kid;
+    
+    if (!kid) {
+      throw new Error('Token sem kid no cabeçalho');
+    }
+    
+    // Obter as chaves JWKS
+    const jwks = await getJwks();
+    const key = findKey(jwks, kid);
+    
+    if (!key) {
+      throw new Error('Chave de verificação não encontrada');
+    }
+    
+    // Verificar o token manualmente (sem usar jose)
+    const verifyOptions: jwt.VerifyOptions = {
+      algorithms: ['RS256'] as jwt.Algorithm[],
       issuer: CLERK_ISSUER,
       audience: process.env.CLERK_JWT_AUDIENCE || process.env.CLERK_PUBLIC_KEY
-    });
+    };
+    
+    // Formato da chave pública PEM
+    const pemKey = `-----BEGIN PUBLIC KEY-----\n${key.x5c[0]}\n-----END PUBLIC KEY-----`;
+    
+    // Verificar o token
+    const payload: any = jwt.verify(token, pemKey, verifyOptions);
     
     if (!payload.sub) {
       logger.warn('JWT do Clerk sem subject (sub)');
