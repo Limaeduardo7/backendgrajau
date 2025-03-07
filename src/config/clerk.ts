@@ -1,6 +1,8 @@
 import { clerkClient } from '@clerk/clerk-sdk-node'
 import { Request, Response, NextFunction } from 'express'
 import logger from './logger'
+import prisma from './prisma'
+import { Status } from '@prisma/client'
 
 export const clerk = clerkClient
 
@@ -26,44 +28,105 @@ if (!SECRET_KEY) {
 // Função para verificar token JWT do Clerk
 export const verifyClerkToken = async (token: string) => {
   try {
-    // Verificar o token com a API do Clerk
-    const { sub, sid } = await clerkClient.verifyToken(token)
-    
-    if (!sub) {
-      throw new Error('Token inválido')
-    }
-    
-    // Buscar usuário pelo ID do Clerk
-    const user = await clerkClient.users.getUser(sub)
-    
-    if (!user) {
-      throw new Error('Usuário não encontrado')
-    }
-    
-    // Extrair metadados públicos (incluindo role)
-    const role = user.publicMetadata?.role as string || 'user'
-    const email = user.emailAddresses[0]?.emailAddress
-    
-    return {
-      clerkId: user.id,
-      role,
-      email
+    // Verificar se é um token do nosso formato personalizado
+    if (token.startsWith('clerk_token_')) {
+      logger.info('Verificando token no formato personalizado');
+      // Extrair e decodificar o payload
+      const base64Payload = token.replace('clerk_token_', '');
+      const payloadString = Buffer.from(base64Payload, 'base64').toString();
+      const payload = JSON.parse(payloadString);
+      
+      // Verificar expiração
+      if (payload.expiresAt < Date.now()) {
+        logger.warn(`Token expirado para usuário ${payload.userId}`);
+        throw new Error('Token expirado');
+      }
+      
+      // Verificar se o usuário existe no banco de dados
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId }
+      });
+      
+      if (!user) {
+        logger.warn(`Usuário não encontrado: ${payload.userId}`);
+        throw new Error('Usuário não encontrado');
+      }
+      
+      // Verificar se o usuário está ativo
+      if (user.status !== Status.APPROVED) {
+        logger.warn(`Tentativa de acesso com usuário inativo: ${user.id}`);
+        throw new Error('Usuário inativo');
+      }
+      
+      logger.info(`Autenticação bem-sucedida para usuário ${user.id}`);
+      
+      // Retornar informações do usuário
+      return {
+        clerkId: user.clerkId,
+        role: payload.role,
+        email: payload.email
+      };
+    } 
+    // Caso contrário, usar a verificação padrão do Clerk
+    else {
+      logger.info('Verificando token no formato Clerk padrão');
+      // Verificar o token com a API do Clerk
+      const { sub, sid } = await clerkClient.verifyToken(token);
+      
+      if (!sub) {
+        throw new Error('Token inválido');
+      }
+      
+      // Buscar usuário pelo ID do Clerk
+      const user = await clerkClient.users.getUser(sub);
+      
+      if (!user) {
+        throw new Error('Usuário não encontrado');
+      }
+      
+      // Extrair metadados públicos (incluindo role)
+      const role = user.publicMetadata?.role as string || 'user';
+      const email = user.emailAddresses[0]?.emailAddress;
+      
+      // Buscar usuário no banco de dados local
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id }
+      });
+      
+      if (!dbUser) {
+        logger.warn(`Usuário não encontrado no banco local: ${user.id}`);
+        throw new Error('Usuário não encontrado no banco local');
+      }
+      
+      // Verificar se o usuário está ativo
+      if (dbUser.status !== Status.APPROVED) {
+        logger.warn(`Tentativa de acesso com usuário inativo: ${dbUser.id}`);
+        throw new Error('Usuário inativo');
+      }
+      
+      logger.info(`Autenticação bem-sucedida para usuário ${dbUser.id}`);
+      
+      return {
+        clerkId: user.id,
+        role,
+        email
+      };
     }
   } catch (error) {
-    logger.error('Erro ao verificar token Clerk:', error)
-    throw new Error('Falha na autenticação')
+    logger.error('Erro ao verificar token:', error);
+    throw new Error('Falha na autenticação');
   }
-}
+};
 
 // Função para extrair token do cabeçalho Authorization
 export const extractTokenFromHeader = (req: Request) => {
-  const authHeader = req.headers.authorization
+  const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
+    return null;
   }
   
-  return authHeader.split(' ')[1]
-}
+  return authHeader.split(' ')[1];
+};
 
 export default clerkClient 

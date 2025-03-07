@@ -3,6 +3,8 @@ import { clerkClient } from '@clerk/clerk-sdk-node';
 import { ApiError } from '../utils/ApiError';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
+import { verifyClerkToken } from '../config/clerk';
+import tokenService from '../services/token.service';
 
 // Estender a interface Request para incluir o usuário
 declare global {
@@ -18,49 +20,33 @@ declare global {
   }
 }
 
-// Middleware simplificado para verificar se o usuário está autenticado
+// Middleware para verificar se o usuário está autenticado
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Verificar se o token existe
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
       logger.warn('Tentativa de acesso sem token de autenticação');
-      return res.status(401).json({ error: 'Token não fornecido' });
+      return res.status(401).json({ message: 'Token não fornecido' });
     }
 
-    // Autenticação via Clerk
+    // Verificar se o token está revogado
+    if (tokenService.isTokenRevoked(token)) {
+      logger.warn('Tentativa de acesso com token revogado');
+      return res.status(401).json({ message: 'Token revogado' });
+    }
+
     try {
-      // Verificar a sessão com o Clerk
-      const session = await clerkClient.sessions.verifySession(token, token);
-      if (!session) {
-        return res.status(401).json({ error: 'Sessão inválida' });
-      }
-
-      // Obter o usuário do Clerk
-      const clerkUser = await clerkClient.users.getUser(session.userId);
-      if (!clerkUser) {
-        return res.status(401).json({ error: 'Usuário não encontrado' });
-      }
-
-      // Obter o email do usuário Clerk
-      const clerkEmail = clerkUser.emailAddresses[0]?.emailAddress || '';
-
-      // Buscar ou criar o usuário no banco de dados local
-      let user = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
+      // Verificar o token (função atualizada que suporta ambos os formatos)
+      const userData = await verifyClerkToken(token);
+      
+      // Buscar usuário no banco de dados
+      const user = await prisma.user.findUnique({
+        where: { clerkId: userData.clerkId },
       });
 
       if (!user) {
-        // Criar novo usuário no banco de dados
-        user = await prisma.user.create({
-          data: {
-            clerkId: clerkUser.id,
-            name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'Usuário',
-            email: clerkEmail,
-            role: 'USER',
-            status: 'PENDING',
-          }
-        });
+        return res.status(401).json({ message: 'Usuário não encontrado' });
       }
 
       // Definir o usuário na requisição
@@ -73,17 +59,21 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
       next();
     } catch (error) {
+      // Verificar se é erro de token expirado
+      if (error instanceof Error && error.message === 'Token expirado') {
+        return res.status(401).json({ message: 'Token expirado' });
+      }
+      
       logger.error(`Erro na autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      return res.status(401).json({ error: 'Não autorizado' });
+      return res.status(401).json({ message: 'Não autorizado' });
     }
   } catch (error) {
     logger.error(`Erro geral no middleware: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    return res.status(500).json({ error: 'Erro interno do servidor' });
+    return res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
 
-// Middleware simplificado para verificar papel/função do usuário
-// A verificação de roles foi REMOVIDA pois agora é feita no frontend com Clerk
+// Middleware para verificar papel/função do usuário
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     // Verificar se o usuário está autenticado
@@ -103,7 +93,7 @@ export const requireRole = (roles: string[]) => {
   };
 };
 
-// Middleware simplificado para validar usuário em rotas públicas
+// Middleware para validar usuário em rotas públicas
 export const validateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -114,23 +104,20 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
       return next();
     }
 
+    // Verificar se o token está revogado
+    if (tokenService.isTokenRevoked(token)) {
+      req.user = undefined;
+      return next();
+    }
+
     // Tentar autenticar com o token disponível
     try {
-      const session = await clerkClient.sessions.verifySession(token, token);
-      if (!session) {
-        req.user = undefined;
-        return next();
-      }
-
-      const clerkUser = await clerkClient.users.getUser(session.userId);
-      if (!clerkUser) {
-        req.user = undefined;
-        return next();
-      }
-
-      // Buscar usuário no banco local
+      // Verificar o token (função atualizada que suporta ambos os formatos)
+      const userData = await verifyClerkToken(token);
+      
+      // Buscar usuário no banco de dados
       const user = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
+        where: { clerkId: userData.clerkId },
       });
 
       if (user) {
