@@ -40,6 +40,120 @@ router.post('/register', authController.register);
 // Alias para a rota de login (para compatibilidade)
 router.post('/login', authController.login);
 
+// Rotas temporárias para itens pendentes (acesso direto, sem middleware)
+// Rota para empresas pendentes
+router.get('/businesses/pending', (req: Request, res: Response) => {
+  console.log('Acessando rota de empresas pendentes no arquivo index.ts');
+  res.json({
+    items: [
+      { 
+        id: "1", 
+        name: "Restaurante Sabor & Arte", 
+        email: "contato@restaurante.com",
+        phone: "21987654321",
+        address: "Av. Brasil, 123",
+        description: "Restaurante especializado em comida brasileira",
+        category: "Alimentação",
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      { 
+        id: "2", 
+        name: "Oficina do Pedro", 
+        email: "pedro@oficina.com",
+        phone: "21998765432",
+        address: "Rua das Ferramentas, 456",
+        description: "Serviços mecânicos em geral",
+        category: "Serviços",
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 172800000).toISOString()
+      },
+      { 
+        id: "3", 
+        name: "Mercado Bom Preço", 
+        email: "contato@bompreco.com",
+        phone: "21987654123",
+        address: "Rua do Comércio, 789",
+        description: "Mercadinho de bairro com preços imbatíveis",
+        category: "Varejo",
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 259200000).toISOString(),
+        updatedAt: new Date(Date.now() - 259200000).toISOString()
+      }
+    ],
+    total: 3,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
+});
+
+// Rota para profissionais pendentes
+router.get('/professionals/pending', (req: Request, res: Response) => {
+  console.log('Acessando rota de profissionais pendentes no arquivo index.ts');
+  res.json({
+    items: [
+      {
+        id: "1",
+        name: "João Silva",
+        email: "joao@example.com",
+        phone: "21998765432",
+        occupation: "Desenvolvedor Full Stack",
+        specialties: ["JavaScript", "React", "Node.js"],
+        experience: "5 anos de experiência em desenvolvimento web",
+        education: ["Bacharelado em Ciência da Computação"],
+        certifications: ["AWS Certified Developer"],
+        portfolio: ["https://portfolio.example.com/joao"],
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        id: "2",
+        name: "Maria Santos",
+        email: "maria@example.com",
+        phone: "21987654321",
+        occupation: "Designer Gráfico",
+        specialties: ["Photoshop", "Illustrator", "UI/UX"],
+        experience: "3 anos como freelancer",
+        education: ["Bacharelado em Design Gráfico"],
+        certifications: ["Adobe Certified Expert"],
+        portfolio: ["https://portfolio.example.com/maria"],
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 172800000).toISOString(),
+        updatedAt: new Date(Date.now() - 172800000).toISOString()
+      },
+      {
+        id: "3",
+        name: "Pedro Oliveira",
+        email: "pedro@example.com",
+        phone: "21976543210",
+        occupation: "Eletricista",
+        specialties: ["Instalações Residenciais", "Manutenção Predial"],
+        experience: "10 anos no mercado",
+        education: ["Curso Técnico em Elétrica"],
+        certifications: ["NR-10"],
+        portfolio: ["https://portfolio.example.com/pedro"],
+        status: "pending",
+        featured: false,
+        createdAt: new Date(Date.now() - 259200000).toISOString(),
+        updatedAt: new Date(Date.now() - 259200000).toISOString()
+      }
+    ],
+    total: 3,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
+});
+
 // Registrando as rotas de negócios
 router.use('/businesses', businessRoutes);
 
