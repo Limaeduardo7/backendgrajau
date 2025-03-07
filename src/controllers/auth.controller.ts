@@ -1,13 +1,21 @@
-import { Request, Response } from 'express';
+import { Request as ExpressRequest, Response } from 'express';
 import { clerkClient } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import logger from '../config/logger';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import tokenService from '../services/token.service';
-import { verifyClerkToken } from '../config/clerk';
-import { verifyClerkJWT } from '../services/clerk.service';
+
+// Estender o tipo Request para incluir body tipado
+interface Request extends ExpressRequest {
+  body: any;
+  user?: {
+    id: string;
+    clerkId: string;
+    role: string;
+    email?: string;
+  };
+}
 
 // Lista de tokens problemáticos conhecidos
 const PROBLEM_TOKENS = [
@@ -646,11 +654,12 @@ export class AuthController {
         return res.status(404).json({ error: 'Usuário não encontrado' });
       }
 
-      // Criar uma nova sessão no Clerk para o usuário
-      const session = await clerkClient.sessions.createSession({
-        userId: user.clerkId,
-        expireInSeconds: 1800 // 30 minutos
-      });
+      // Gerar um token JWT temporário
+      const tempToken = jwt.sign(
+        { userId: user.id, clerkId: user.clerkId },
+        process.env.JWT_SECRET || 'default-secret',
+        { expiresIn: '30m' }
+      );
       
       // Registrar a ação no log de auditoria
       await prisma.auditLog.create({
@@ -668,7 +677,7 @@ export class AuthController {
       
       return res.status(200).json({
         message: 'Token de recuperação gerado com sucesso',
-        token: session.id,
+        token: tempToken,
         user: {
           id: user.id,
           name: user.name,
@@ -726,11 +735,12 @@ export class AuthController {
           });
         }
         
-        // Criar uma nova sessão no Clerk para o usuário fallback
-        const session = await clerkClient.sessions.createSession({
-          userId: fallbackUser.clerkId,
-          expireInSeconds: 3600 // 1 hora
-        });
+        // Gerar um token JWT temporário
+        const tempToken = jwt.sign(
+          { userId: fallbackUser.id, clerkId: fallbackUser.clerkId },
+          process.env.JWT_SECRET || 'default-secret',
+          { expiresIn: '1h' }
+        );
         
         // Registrar a recuperação no log de auditoria
         try {
@@ -753,7 +763,7 @@ export class AuthController {
         return res.status(200).json({
           status: 'success',
           message: 'Token problemático detectado. Gerado token temporário de recuperação.',
-          temporaryToken: session.id,
+          temporaryToken: tempToken,
           expiresIn: '60 minutos',
           user: {
             id: fallbackUser.id,
