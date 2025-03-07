@@ -2,7 +2,7 @@ import prisma from '../config/prisma';
 import logger from '../config/logger';
 import { Status } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
-import axios from 'axios';
+import * as https from 'https';
 
 // Cache para as chaves públicas do Clerk
 let jwksCache: any = null;
@@ -13,6 +13,29 @@ const JWKS_CACHE_TTL = 3600000; // 1 hora
 const CLERK_ISSUER = process.env.CLERK_ISSUER || 'https://clerk.anunciargrajaueregiao.com';
 const CLERK_JWKS_URL = `${CLERK_ISSUER}/.well-known/jwks.json`;
 
+// Função para fazer uma requisição HTTP GET
+function httpsGet(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Erro ao fazer parse da resposta JSON'));
+        }
+      });
+    }).on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
 // Função para obter as chaves JWKS do Clerk
 async function getJwks() {
   // Verificar se o cache ainda é válido
@@ -21,8 +44,8 @@ async function getJwks() {
   }
 
   try {
-    const response = await axios.get(CLERK_JWKS_URL);
-    jwksCache = response.data;
+    const data = await httpsGet(CLERK_JWKS_URL);
+    jwksCache = data;
     jwksCacheTime = Date.now();
     return jwksCache;
   } catch (error) {
