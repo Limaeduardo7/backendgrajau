@@ -26,7 +26,6 @@ export const errorHandler = (
   // Erros da API
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
-      status: 'error',
       message: err.message,
       errors: err.errors,
     });
@@ -40,7 +39,6 @@ export const errorHandler = (
     }));
 
     return res.status(400).json({
-      status: 'error',
       message: 'Erro de validação',
       errors,
     });
@@ -52,7 +50,6 @@ export const errorHandler = (
     if (err.code === 'P2002') {
       const field = (err.meta?.target as string[]) || ['unknown'];
       return res.status(409).json({
-        status: 'error',
         message: 'Conflito de dados',
         errors: [
           {
@@ -66,7 +63,6 @@ export const errorHandler = (
     // Erro de registro não encontrado (P2025)
     if (err.code === 'P2025') {
       return res.status(404).json({
-        status: 'error',
         message: 'Recurso não encontrado',
       });
     }
@@ -74,7 +70,6 @@ export const errorHandler = (
     // Erro de restrição de chave estrangeira (P2003)
     if (err.code === 'P2003') {
       return res.status(400).json({
-        status: 'error',
         message: 'Erro de referência',
         errors: [
           {
@@ -87,7 +82,6 @@ export const errorHandler = (
 
     // Outros erros do Prisma
     return res.status(500).json({
-      status: 'error',
       message: 'Erro de banco de dados',
     });
   }
@@ -95,7 +89,6 @@ export const errorHandler = (
   // Erro de validação do Prisma
   if (err instanceof PrismaClientValidationError) {
     return res.status(400).json({
-      status: 'error',
       message: 'Erro de validação no banco de dados',
     });
   }
@@ -103,14 +96,12 @@ export const errorHandler = (
   // Erros de JWT
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
-      status: 'error',
       message: 'Token inválido',
     });
   }
 
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
-      status: 'error',
       message: 'Token expirado',
     });
   }
@@ -118,7 +109,6 @@ export const errorHandler = (
   // Erros de multer (upload de arquivos)
   if (err.name === 'MulterError') {
     return res.status(400).json({
-      status: 'error',
       message: 'Erro no upload de arquivo',
       errors: [
         {
@@ -131,7 +121,6 @@ export const errorHandler = (
 
   // Erro padrão para qualquer outro tipo de erro
   return res.status(500).json({
-    status: 'error',
     message: 'Erro interno do servidor',
   });
 }; 

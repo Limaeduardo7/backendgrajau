@@ -86,12 +86,19 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 // A verificação de roles foi REMOVIDA pois agora é feita no frontend com Clerk
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Apenas verifica se o usuário está autenticado, sem verificar a role
+    // Verificar se o usuário está autenticado
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: 'Não autorizado' });
+      logger.warn('Tentativa de acesso sem autenticação a rota protegida por role');
+      return res.status(401).json({ message: 'Não autorizado' });
     }
 
-    // Permitir acesso independentemente da role
+    // Verificar se o usuário tem a role necessária
+    if (roles.length > 0 && !roles.includes(req.user.role)) {
+      logger.warn(`Usuário ${req.user.id} com role ${req.user.role} tentou acessar rota que requer ${roles.join(', ')}`);
+      return res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' });
+    }
+
+    // Permitir acesso
     next();
   };
 };

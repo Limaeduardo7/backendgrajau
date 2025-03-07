@@ -13,7 +13,7 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
       await handler(req, res);
     } catch (error: any) {
       console.error('Erro na rota pública:', error);
-      res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+      res.status(500).json({ message: 'Erro interno do servidor', details: error.message });
     }
   };
 
@@ -54,24 +54,11 @@ router.post('/posts/:postId/comments', requireAuth, blogController.addComment);
 router.get('/posts/:postId/comments', blogController.getCommentsByPostId);
 router.delete('/comments/:id', requireAuth, blogController.removeComment);
 
-// Bypass de autenticação para rotas do blog (solução temporária)
-const bypassBlogAuth = (req: Request, res: Response, next: NextFunction) => {
-  console.log('Bypass de autenticação aplicado para rota do blog');
-  // Adicionar um usuário falso à requisição
-  req.user = {
-    id: 'admin_bypass',
-    clerkId: 'admin_bypass',
-    role: 'ADMIN',
-    email: 'admin@example.com'
-  };
-  next();
-};
+// Rota para posts em rascunho (requer autenticação de admin ou editor)
+router.get('/posts/drafts', requireAuth, requireRole(['ADMIN', 'EDITOR']), blogController.getDraftPosts);
 
-// Rota modificada para posts em rascunho sem autenticação
-router.get('/posts/drafts', bypassBlogAuth, blogController.getDraftPosts);
-
-// Rota modificada para posts publicados sem autenticação
-router.get('/posts/published', bypassBlogAuth, (req, res) => {
+// Rota para posts publicados
+router.get('/posts/published', (req, res) => {
   req.query.published = 'true';
   return blogController.list(req, res);
 });

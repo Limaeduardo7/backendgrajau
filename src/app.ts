@@ -53,10 +53,25 @@ app.use(helmet({
 
 // Configuração CORS - reposicionada após configurações de segurança
 app.use(cors({
-  origin: ['https://anunciargrajaueregiao.com', 'https://www.anunciargrajaueregiao.com', 'http://localhost:3000'],
+  origin: [
+    'https://anunciargrajaueregiao.com', 
+    'https://www.anunciargrajaueregiao.com', 
+    'https://admin.anunciargrajaueregiao.com',
+    'http://localhost:3000', 
+    'http://localhost:5173'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Origin', 
+    'X-Requested-With', 
+    'Content-Type', 
+    'Accept', 
+    'Authorization', 
+    'X-Clerk-Auth',
+    'Clerk-Frontend-API'
+  ],
+  exposedHeaders: ['Content-Length', 'Content-Type']
 }));
 
 // Rate limiting com configuração mais segura
@@ -137,169 +152,12 @@ app.get('/status', (req, res) => {
 // Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API
 app.use('/api', routes);
 
-// Adicionar as rotas diretamente ao app Express para garantir que elas sejam registradas corretamente
-// Rotas de empresas aprovadas/rejeitadas
-app.get('/api/businesses/approved', (req: Request, res: Response) => {
-  console.log('Acessando rota direta de empresas aprovadas no app.ts');
-  
-  // Obter parâmetros de paginação
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-  
-  // Dados de exemplo para empresas aprovadas
-  res.json({
-    items: [
-      { 
-        id: "4", 
-        name: "Padaria Pão Quente", 
-        email: "contato@paoquente.com",
-        phone: "21987654322",
-        address: "Av. Engenheiro Richard, 25",
-        description: "Padaria tradicional do bairro desde 1980",
-        category: "Alimentação",
-        status: "approved",
-        featured: true,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString()
-      },
-      { 
-        id: "5", 
-        name: "Mercado do João", 
-        email: "contato@mercadojoao.com",
-        phone: "21998765433",
-        address: "Rua Borda do Mato, 120",
-        description: "Mercadinho de bairro com produtos frescos e preços acessíveis",
-        category: "Varejo",
-        status: "approved",
-        featured: false,
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 172800000).toISOString()
-      },
-      { 
-        id: "6", 
-        name: "Academia Fitness Total", 
-        email: "contato@fitnesstotal.com",
-        phone: "21987654124",
-        address: "Rua Visconde de Santa Isabel, 55",
-        description: "Academia completa com musculação e aulas coletivas",
-        category: "Esportes",
-        status: "approved",
-        featured: true,
-        createdAt: new Date(Date.now() - 259200000).toISOString(),
-        updatedAt: new Date(Date.now() - 259200000).toISOString()
-      }
-    ],
-    total: 3,
-    page: 1,
-    limit: 10,
-    totalPages: 1
-  });
-});
-
-app.get('/api/businesses/rejected', (req: Request, res: Response) => {
-  console.log('Acessando rota direta de empresas rejeitadas no app.ts');
-  
-  // Obter parâmetros de paginação
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-  
-  // Dados de exemplo para empresas rejeitadas
-  res.json({
-    items: [
-      { 
-        id: "7", 
-        name: "Empresa Inválida Ltda", 
-        email: "contato@invalida.com",
-        phone: "21999999999",
-        address: "Endereço não confirmado, 0",
-        description: "Empresa sem documentação completa",
-        category: "Serviços",
-        status: "rejected",
-        featured: false,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - 43200000).toISOString(),
-        rejectionReason: "Documentação incompleta"
-      },
-      { 
-        id: "8", 
-        name: "Negócio Suspeito", 
-        email: "contato@suspeito.com",
-        phone: "21988888888",
-        address: "Rua Desconhecida, 999",
-        description: "Atividade não identificada corretamente",
-        category: "Outros",
-        status: "rejected",
-        featured: false,
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        rejectionReason: "Informações inconsistentes"
-      }
-    ],
-    total: 2,
-    page: 1,
-    limit: 10,
-    totalPages: 1
-  });
-});
-
-app.get('/api/professionals/rejected', (req: Request, res: Response) => {
-  console.log('Acessando rota direta de profissionais rejeitados no app.ts');
-  
-  // Obter parâmetros de paginação
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-  
-  // Dados de exemplo para profissionais rejeitados
-  res.json({
-    items: [
-      {
-        id: "4",
-        name: "Roberto Pereira",
-        email: "roberto@example.com",
-        phone: "21987654321",
-        occupation: "Consultor Falso",
-        specialties: ["Serviços inexistentes"],
-        experience: "Sem comprovação",
-        education: ["Diploma não verificado"],
-        certifications: [],
-        portfolio: [],
-        status: "rejected",
-        featured: false,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - 43200000).toISOString(),
-        rejectionReason: "Certificações não verificadas"
-      },
-      {
-        id: "5",
-        name: "Ana Paula Silva",
-        email: "anapaula@example.com",
-        phone: "21976543210",
-        occupation: "Médica",
-        specialties: ["Sem CRM"],
-        experience: "Experiência não comprovada",
-        education: ["Certificados não validados"],
-        certifications: [],
-        portfolio: [],
-        status: "rejected",
-        featured: false,
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        rejectionReason: "Documentação profissional insuficiente"
-      }
-    ],
-    total: 2,
-    page: 1,
-    limit: 10,
-    totalPages: 1
-  });
-});
-
-// Middleware do Sentry para capturar erros (antes do errorHandler)
+// Adicionar o middleware de tratamento de erros do Sentry antes do handler de erros padrão
 if (process.env.NODE_ENV === 'production') {
   app.use(sentryErrorHandler);
 }
 
-// Tratamento de erros
+// Middleware de tratamento de erros
 app.use(errorHandler);
 
 export default app; 
