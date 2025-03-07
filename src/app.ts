@@ -11,7 +11,9 @@ import { sanitizeData } from './middlewares/sanitizer.middleware';
 import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
 import apiPrefixMiddleware from './middlewares/apiPrefixMiddleware';
+import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import { Request, Response } from 'express';
+import path from 'path';
 
 const app = express();
 
@@ -133,6 +135,12 @@ app.use(limiter);
 // Middlewares
 app.use(express.json());
 
+// Servir arquivos estáticos da pasta public
+app.use(express.static('src/public'));
+
+// Middleware de recuperação de sessão (antes de morgan para capturar problemas de autenticação)
+app.use(sessionRecoveryMiddleware);
+
 // Configurar Morgan para usar o logger Winston
 app.use(morgan('combined', {
   stream: {
@@ -157,6 +165,11 @@ app.use(apiPrefixMiddleware);
 // Rota de status
 app.get('/status', (req, res) => {
   res.status(200).json({ status: 'online', timestamp: new Date().toISOString() });
+});
+
+// Rota para a página de recuperação de autenticação
+app.get('/auth-recovery', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'auth-recovery.html'));
 });
 
 // Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API

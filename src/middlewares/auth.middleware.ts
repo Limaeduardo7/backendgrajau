@@ -46,7 +46,8 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       });
 
       if (!user) {
-        return res.status(401).json({ message: 'Usuário não encontrado' });
+        logger.warn(`Usuário com clerkId ${userData.clerkId} não encontrado no banco de dados`);
+        return res.status(401).json({ message: 'Usuário não encontrado no banco de dados' });
       }
 
       // Definir o usuário na requisição
@@ -60,12 +61,24 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       next();
     } catch (error) {
       // Verificar se é erro de token expirado
-      if (error instanceof Error && error.message === 'Token expirado') {
-        return res.status(401).json({ message: 'Token expirado' });
+      if (error instanceof Error) {
+        if (error.message === 'Token expirado') {
+          logger.warn('Tentativa de acesso com token expirado');
+          return res.status(401).json({ message: 'Token expirado' });
+        } else if (error.message === 'Usuário não encontrado') {
+          logger.warn(`Usuário não encontrado para token: ${token.substring(0, 10)}...`);
+          return res.status(401).json({ message: 'Usuário não encontrado' });
+        } else if (error.message === 'Usuário inativo') {
+          logger.warn('Tentativa de acesso com usuário inativo');
+          return res.status(401).json({ message: 'Usuário inativo' });
+        }
+        
+        logger.error(`Erro na autenticação: ${error.message}`);
+      } else {
+        logger.error(`Erro na autenticação: Erro desconhecido`);
       }
       
-      logger.error(`Erro na autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      return res.status(401).json({ message: 'Não autorizado' });
+      return res.status(401).json({ message: 'Falha na autenticação' });
     }
   } catch (error) {
     logger.error(`Erro geral no middleware: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -139,4 +152,27 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
     req.user = undefined;
     next();
   }
+};
+
+// Middleware para recuperação de sessão em caso de falhas repetidas de autenticação
+export const sessionRecoveryMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Armazenar tentativas de autenticação para cada IP
+  const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+  
+  // Verificar cabeçalho de autorização
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return next();
+  }
+  
+  // Verificar se é o token problemático conhecido
+  if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
+    logger.info(`Detectado token problemático na rota ${req.originalUrl} de ${ipAddress}`);
+    
+    // Adicionar informações para depuração
+    res.setHeader('X-Auth-Recovery', 'problem-token-detected');
+  }
+  
+  // Em qualquer caso, continuar para o próximo middleware
+  next();
 }; 

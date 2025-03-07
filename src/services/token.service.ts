@@ -70,6 +70,28 @@ class TokenService {
     // Criar o token no formato esperado pelo frontend
     return `clerk_token_${base64Payload}`;
   }
+  
+  // Gerar um token de recuperação de acesso temporário
+  generateRecoveryToken(userId: string, email: string, role: string, duration: number = 30): string {
+    const expireMinutes = duration * 60 * 1000; // Convertendo minutos para milissegundos
+    
+    const payload = {
+      userId,
+      email,
+      role,
+      isRecovery: true,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + expireMinutes // Token de curta duração
+    };
+    
+    logger.info(`Gerando token de recuperação para usuário ${userId} com expiração de ${duration} minutos`);
+    
+    // Codificar o payload em base64
+    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+    
+    // Criar o token no formato esperado
+    return `clerk_recovery_${base64Payload}`;
+  }
 }
 
 export default new TokenService(); 

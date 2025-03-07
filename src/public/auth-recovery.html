@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperação de Autenticação - Anunciar Grajaú</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 30px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+        code {
+            font-family: Consolas, Monaco, 'Andale Mono', monospace;
+            color: #e74c3c;
+        }
+        .alert {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #f5c6cb;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ferramenta de Recuperação de Autenticação</h1>
+    
+    <div class="alert">
+        <strong>Atenção:</strong> Esta ferramenta foi criada para resolver problemas de autenticação no frontend da plataforma Anunciar Grajaú.
+    </div>
+    
+    <h2>Problema Detectado</h2>
+    <p>Foi identificado um problema com tokens de autenticação em algumas sessões de usuários, resultando em erros 401 (Não Autorizado) ao acessar certas páginas do perfil.</p>
+    
+    <h2>Como Resolver</h2>
+    <p>Para resolver este problema, adicione o script abaixo ao seu frontend:</p>
+    
+    <h3>1. Adicione o script ao seu HTML</h3>
+    <pre><code>&lt;script src="https://api.anunciargrajaueregiao.com/auth-recovery.js"&gt;&lt;/script&gt;</code></pre>
+    
+    <p>Coloque este script na seção &lt;head&gt; de todas as páginas que requerem autenticação.</p>
+    
+    <h3>2. Como funciona</h3>
+    <p>O script faz o seguinte:</p>
+    <ul>
+        <li>Verifica se há token problemático no localStorage</li>
+        <li>Faz uma chamada à API para obter um token de recuperação</li>
+        <li>Substitui automaticamente o token inválido</li>
+        <li>Monitora erros 401 e tenta recuperar a sessão automaticamente</li>
+    </ul>
+    
+    <h3>3. Teste manual</h3>
+    <p>Para testar manualmente a recuperação, você pode:</p>
+    <pre><code>// No console do navegador
+localStorage.setItem('token', '2tzoIYjxqtSE6LbFHL9mecf9JKM');
+// Recarregue a página e verifique se o script detecta e corrige o problema</code></pre>
+    
+    <h2>Documentação Completa</h2>
+    <p>Para mais informações, consulte a documentação completa da API ou entre em contato com o suporte técnico.</p>
+    
+    <a href="/api-docs" class="btn">Documentação da API</a>
+    
+    <!-- Carregue o script de recuperação para demonstração -->
+    <script src="/auth-recovery.js"></script>
+</body>
+</html> 
