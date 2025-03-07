@@ -182,6 +182,12 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
 
 // Middleware para recuperação de sessão em caso de falhas repetidas de autenticação
 export const sessionRecoveryMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Lista de tokens problemáticos conhecidos
+  const PROBLEM_TOKENS = [
+    '2tzoIYjxqtSE6LbFHL9mecf9JKM',
+    '2u0AiWfTasYZwnkd4Hunqt0dE9u'
+  ];
+
   // Armazenar tentativas de autenticação para cada IP
   const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
   
@@ -191,8 +197,8 @@ export const sessionRecoveryMiddleware = (req: Request, res: Response, next: Nex
     return next();
   }
   
-  // Verificar se é o token problemático conhecido
-  if (token === '2tzoIYjxqtSE6LbFHL9mecf9JKM') {
+  // Verificar se é um token problemático conhecido
+  if (PROBLEM_TOKENS.includes(token)) {
     logger.info(`Detectado token problemático na rota ${req.originalUrl} de ${ipAddress}`);
     
     // Adicionar informações para depuração
