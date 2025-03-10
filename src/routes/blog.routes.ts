@@ -19,48 +19,64 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
 
 // Rotas públicas
 router.get('/', handlePublicRouteErrors(blogController.list));
+router.get('/stats', handlePublicRouteErrors(blogController.getBlogStats));
+
+// Posts - rotas específicas antes de rotas com parâmetros
 router.get('/posts', handlePublicRouteErrors(blogController.list));
+router.get('/posts/all', handlePublicRouteErrors(blogController.getAllPosts));
 router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
   req.query.featured = 'true';
   return blogController.list(req, res);
 }));
+router.get('/posts/published', handlePublicRouteErrors(blogController.getPublishedPosts));
+router.get('/posts/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
+router.get('/posts/:id', handlePublicRouteErrors(blogController.getById));
+
+// Categorias
 router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
+router.get('/categories/:id', handlePublicRouteErrors(blogController.getCategoryById));
+
+// Tags
 router.get('/tags', handlePublicRouteErrors(blogController.listTags));
-router.get('/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
-router.get('/:id', handlePublicRouteErrors(blogController.getById));
+
+// Comentários - listar comentários de um post (público)
+router.get('/posts/:postId/comments', handlePublicRouteErrors(blogController.getCommentsByPostId));
 
 // Rotas protegidas
 router.use(requireAuth);
 router.use(validateUser);
 
-// Rotas que requerem autenticação
-router.post('/', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.create);
-router.put('/:id', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.update);
-router.delete('/:id', requireRole(['ADMIN', 'EDITOR']), blogController.delete);
+// Rotas de posts que requerem autenticação - rotas específicas antes de rotas com parâmetros
+router.get('/posts/drafts', requireRole(['ADMIN', 'EDITOR']), blogController.getDraftPosts);
+router.post('/posts', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.create);
+router.put('/posts/:id', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.update);
+router.delete('/posts/:id', requireRole(['ADMIN', 'EDITOR']), blogController.delete);
 
-// Rotas de comentários
-router.post('/:id/comments', requireRole(['USER']), blogController.addComment);
-router.delete('/:id/comments/:commentId', requireRole(['USER', 'ADMIN']), blogController.deleteComment);
+// Novas rotas para publicação, destaque etc.
+router.put('/posts/:id/publish', requireRole(['ADMIN', 'EDITOR']), blogController.publishPost);
+router.put('/posts/:id/unpublish', requireRole(['ADMIN', 'EDITOR']), blogController.unpublishPost);
+router.put('/posts/:id/feature', requireRole(['ADMIN']), blogController.featurePost);
+router.put('/posts/:id/unfeature', requireRole(['ADMIN']), blogController.unfeaturePost);
 
 // Rotas de categorias
-router.post('/categories', requireAuth, requireRole(['ADMIN']), blogController.createCategory);
-router.get('/categories', blogController.listCategories);
-router.get('/categories/:id', blogController.getCategoryById);
-router.patch('/categories/:id', requireAuth, requireRole(['ADMIN']), blogController.updateCategory);
-router.delete('/categories/:id', requireAuth, requireRole(['ADMIN']), blogController.deleteCategory);
+router.post('/categories', requireRole(['ADMIN']), blogController.createCategory);
+router.put('/categories/:id', requireRole(['ADMIN']), blogController.updateCategory);
+router.delete('/categories/:id', requireRole(['ADMIN']), blogController.deleteCategory);
 
-// Comentários
-router.post('/posts/:postId/comments', requireAuth, blogController.addComment);
-router.get('/posts/:postId/comments', blogController.getCommentsByPostId);
-router.delete('/comments/:id', requireAuth, blogController.removeComment);
+// Rotas de comentários
+router.post('/posts/:id/comments', blogController.addComment);
+router.delete('/posts/:id/comments/:commentId', requireRole(['USER', 'ADMIN']), blogController.deleteComment);
+router.put('/posts/:postId/comments/:commentId/approve', requireRole(['ADMIN']), blogController.approveComment);
+router.put('/posts/:postId/comments/:commentId/reject', requireRole(['ADMIN']), blogController.rejectComment);
 
-// Rota para posts em rascunho (requer autenticação de admin ou editor)
-router.get('/posts/drafts', requireAuth, requireRole(['ADMIN', 'EDITOR']), blogController.getDraftPosts);
-
-// Rota para posts publicados
-router.get('/posts/published', (req, res) => {
-  req.query.published = 'true';
-  return blogController.list(req, res);
+// Rota para upload de imagens
+router.post('/upload', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+  }
+  
+  const imageUrl = `/uploads/${req.file.filename}`;
+  return res.status(201).json({ url: imageUrl });
 });
 
 export default router; 

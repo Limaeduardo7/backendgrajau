@@ -530,4 +530,264 @@ export class BlogService {
       return [];
     }
   }
+
+  async getAllPosts() {
+    try {
+      const posts = await prisma.blogPost.findMany({
+        where: { published: true },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          category: true,
+        },
+        orderBy: { publishedAt: 'desc' },
+      });
+
+      return posts;
+    } catch (error: any) {
+      logger.error(`Falha ao buscar todos os posts: ${error.message}`);
+      return [];
+    }
+  }
+
+  async publishPost(id: string, userId: string) {
+    const post = await this.getById(id);
+
+    // Verificar se o usuário é o autor ou admin
+    if (post.authorId !== userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user?.role !== 'ADMIN') {
+        throw new ApiError(403, 'Você não tem permissão para publicar este post');
+      }
+    }
+
+    return prisma.blogPost.update({
+      where: { id },
+      data: { 
+        published: true,
+        publishedAt: new Date()
+      },
+      include: {
+        author: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        category: true,
+      },
+    });
+  }
+
+  async unpublishPost(id: string, userId: string) {
+    const post = await this.getById(id);
+
+    // Verificar se o usuário é o autor ou admin
+    if (post.authorId !== userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user?.role !== 'ADMIN') {
+        throw new ApiError(403, 'Você não tem permissão para despublicar este post');
+      }
+    }
+
+    return prisma.blogPost.update({
+      where: { id },
+      data: { 
+        published: false,
+        // Não removemos publishedAt para manter o histórico
+      },
+      include: {
+        author: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        category: true,
+      },
+    });
+  }
+
+  async featurePost(id: string, userId: string) {
+    const post = await this.getById(id);
+
+    // Apenas admin pode destacar posts
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'ADMIN') {
+      throw new ApiError(403, 'Apenas administradores podem destacar posts');
+    }
+
+    return prisma.blogPost.update({
+      where: { id },
+      data: { featured: true },
+      include: {
+        author: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        category: true,
+      },
+    });
+  }
+
+  async unfeaturePost(id: string, userId: string) {
+    const post = await this.getById(id);
+
+    // Apenas admin pode remover destaque de posts
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'ADMIN') {
+      throw new ApiError(403, 'Apenas administradores podem remover destaque de posts');
+    }
+
+    return prisma.blogPost.update({
+      where: { id },
+      data: { featured: false },
+      include: {
+        author: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        category: true,
+      },
+    });
+  }
+
+  async getBlogStats() {
+    try {
+      const [
+        totalPosts,
+        publishedPosts,
+        draftPosts,
+        featuredPosts,
+        categories,
+        comments
+      ] = await Promise.all([
+        prisma.blogPost.count(),
+        prisma.blogPost.count({ where: { published: true } }),
+        prisma.blogPost.count({ where: { published: false } }),
+        prisma.blogPost.count({ where: { featured: true } }),
+        prisma.category.count(),
+        prisma.comment.count(),
+      ]);
+
+      // Buscar o número de tags únicas
+      const allPosts = await prisma.blogPost.findMany({
+        select: { tags: true }
+      });
+      
+      // Obter todas as tags únicas
+      const uniqueTags = new Set<string>();
+      allPosts.forEach(post => {
+        post.tags.forEach(tag => uniqueTags.add(tag));
+      });
+
+      // Contar o número total de visualizações (essa informação pode não estar disponível)
+      const totalViews = 0; // Implementar se o modelo tiver este campo
+
+      return {
+        totalPosts,
+        publishedPosts,
+        draftPosts,
+        featuredPosts,
+        totalViews,
+        totalComments: comments,
+        categories,
+        tags: uniqueTags.size
+      };
+    } catch (error: any) {
+      logger.error(`Falha ao obter estatísticas do blog: ${error.message}`);
+      throw new ApiError(500, 'Erro ao obter estatísticas do blog');
+    }
+  }
+
+  async getPublishedPosts({ page = 1, limit = 10 }: { page: number, limit: number }) {
+    const skip = (page - 1) * limit;
+
+    try {
+      const [posts, total] = await Promise.all([
+        prisma.blogPost.findMany({
+          where: { published: true },
+          include: {
+            author: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+            category: true,
+          },
+          skip,
+          take: limit,
+          orderBy: { publishedAt: 'desc' },
+        }),
+        prisma.blogPost.count({ where: { published: true } }),
+      ]);
+
+      return {
+        posts,
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+      };
+    } catch (error: any) {
+      logger.error(`Falha ao buscar posts publicados: ${error.message}`);
+      return {
+        posts: [],
+        total: 0,
+        pages: 0,
+        currentPage: page,
+      };
+    }
+  }
+
+  async approveComment(commentId: string, userId: string) {
+    // Verificar se o usuário é admin
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'ADMIN') {
+      throw new ApiError(403, 'Apenas administradores podem aprovar comentários');
+    }
+
+    // Verificar se o comentário existe
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new ApiError(404, 'Comentário não encontrado');
+    }
+
+    // Implementar se houver um campo de status no modelo Comment
+    // Como não há um campo status no modelo atual, esta função é um placeholder
+    return comment;
+  }
+
+  async rejectComment(commentId: string, userId: string) {
+    // Verificar se o usuário é admin
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'ADMIN') {
+      throw new ApiError(403, 'Apenas administradores podem rejeitar comentários');
+    }
+
+    // Verificar se o comentário existe
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new ApiError(404, 'Comentário não encontrado');
+    }
+
+    // Implementar se houver um campo de status no modelo Comment
+    // Como não há um campo status no modelo atual, esta função é um placeholder
+    return comment;
+  }
 } 

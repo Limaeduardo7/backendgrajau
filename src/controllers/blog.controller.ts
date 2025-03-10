@@ -374,4 +374,169 @@ export class BlogController {
       }
     }
   };
+
+  getAllPosts = async (req: Request, res: Response) => {
+    try {
+      const posts = await this.blogService.getAllPosts();
+      res.json({ data: posts });
+    } catch (error) {
+      console.error('Erro ao buscar todos os posts:', error);
+      res.status(500).json({ error: 'Erro ao buscar todos os posts' });
+    }
+  };
+
+  getPublishedPosts = async (req: Request, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const result = await this.blogService.getPublishedPosts({ page, limit });
+      
+      res.json({
+        data: result.posts,
+        pagination: {
+          total: result.total,
+          page: result.currentPage,
+          limit,
+          pages: result.pages
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao buscar posts publicados:', error);
+      res.status(500).json({ error: 'Erro ao buscar posts publicados' });
+    }
+  };
+
+  publishPost = async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const post = await this.blogService.publishPost(id, userId);
+      res.json({ data: post });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  unpublishPost = async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const post = await this.blogService.unpublishPost(id, userId);
+      res.json({ data: post });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  featurePost = async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const post = await this.blogService.featurePost(id, userId);
+      res.json({ data: post });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  unfeaturePost = async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const post = await this.blogService.unfeaturePost(id, userId);
+      res.json({ data: post });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  getBlogStats = async (req: Request, res: Response) => {
+    try {
+      const stats = await this.blogService.getBlogStats();
+      res.json({ data: stats });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  approveComment = async (req: AuthRequest, res: Response) => {
+    try {
+      const { postId, commentId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const comment = await this.blogService.approveComment(commentId, userId);
+      res.json({ data: comment });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
+  rejectComment = async (req: AuthRequest, res: Response) => {
+    try {
+      const { postId, commentId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const comment = await this.blogService.rejectComment(commentId, userId);
+      res.json({ data: comment });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
 } 
