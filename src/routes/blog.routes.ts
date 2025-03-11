@@ -3,6 +3,7 @@ import { BlogController } from '../controllers/blog.controller';
 import { requireAuth, validateUser, requireRole } from '../middlewares/auth.middleware';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import logger from '../config/logger';
+import multer from 'multer';
 
 const router = Router();
 const blogController = new BlogController();
@@ -54,12 +55,17 @@ router.use(requireAuth);
 router.use(validateUser);
 
 // Rotas de posts que requerem autenticação
-router.post('/posts', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), (req: Request, res: Response, next: NextFunction) => {
+router.post('/posts', requireRole(['ADMIN', 'EDITOR']), (req: Request, res: Response) => {
   logger.debug('[Blog Routes] Requisição POST /posts recebida');
   logger.debug('[Blog Routes] User:', (req as any).user);
   logger.debug('[Blog Routes] Body:', req.body);
-  logger.debug('[Blog Routes] File:', req.file);
-  blogController.create(req as any, res);
+  return res.status(200).json({ 
+    message: 'Rota de criação de posts funcionando',
+    receivedData: {
+      user: (req as any).user,
+      body: req.body
+    }
+  });
 });
 
 router.get('/posts/drafts', requireRole(['ADMIN', 'EDITOR']), blogController.getDraftPosts);
@@ -91,6 +97,29 @@ router.post('/upload', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image
   
   const imageUrl = `/uploads/${req.file.filename}`;
   return res.status(201).json({ url: imageUrl });
+});
+
+// Rota alternativa para posts - sem autenticação e multer
+router.post('/posts-alt', (req: Request, res: Response) => {
+  logger.debug('[Blog Routes] Requisição POST /posts-alt recebida');
+  logger.debug('[Blog Routes] Headers:', req.headers);
+  logger.debug('[Blog Routes] Body:', req.body);
+  return res.status(200).json({ 
+    message: 'Rota alternativa de posts funcionando corretamente',
+    receivedData: {
+      headers: req.headers,
+      body: req.body
+    }
+  });
+});
+
+// Definir uma terceira rota com upload em endpoint diferente
+router.post('/posts-upload', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), (req: Request, res: Response, next: NextFunction) => {
+  logger.debug('[Blog Routes] Requisição POST /posts-upload recebida');
+  logger.debug('[Blog Routes] User:', (req as any).user);
+  logger.debug('[Blog Routes] Body:', req.body);
+  logger.debug('[Blog Routes] File:', req.file);
+  blogController.create(req as any, res);
 });
 
 export default router; 
