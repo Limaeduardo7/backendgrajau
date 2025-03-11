@@ -137,21 +137,37 @@ export class BlogController {
 
   create = async (req: AuthRequest, res: Response) => {
     try {
+      console.log('Recebendo requisição POST /blog/posts');
+      console.log('Headers:', req.headers);
+      console.log('Body:', req.body);
+      console.log('File:', req.file);
+      console.log('User:', req.user);
+
       const data = req.body;
       const userId = req.user?.id;
       const image = req.file;
 
       if (!userId) {
+        console.log('Erro: Usuário não autenticado');
         throw new ApiError(401, 'Usuário não autenticado');
       }
+
+      console.log('Criando post com dados:', {
+        ...data,
+        image: image?.filename,
+        authorId: userId,
+      });
 
       const post = await this.blogService.create({
         ...data,
         image: image?.filename,
         authorId: userId,
       });
+
+      console.log('Post criado com sucesso:', post);
       res.status(201).json(post);
     } catch (error) {
+      console.error('Erro ao criar post:', error);
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
