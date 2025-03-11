@@ -14,21 +14,21 @@ const apiPrefixMiddleware = (req: Request, res: Response, next: NextFunction) =>
     return next();
   }
 
-  // Se a rota não começar com /api/ e não for uma rota de sistema
-  if (!req.path.startsWith('/api/')) {
-    // Construir a nova URL com o prefixo /api/
-    const newPath = `/api${req.path.startsWith('/') ? req.path : `/${req.path}`}`;
-    
-    // Preservar query parameters
-    const queryString = Object.keys(req.query).length > 0 
-      ? `?${new URLSearchParams(req.query as Record<string, string>).toString()}` 
-      : '';
-    
-    // Redirecionar para a nova URL
-    return res.redirect(307, `${newPath}${queryString}`);
+  // Se a rota já começar com /api/, permitir que continue
+  if (req.path.startsWith('/api/')) {
+    return next();
   }
 
-  next();
+  // Para todas as outras rotas, adicionar o prefixo /api/
+  const newPath = `/api${req.path.startsWith('/') ? req.path : `/${req.path}`}`;
+  
+  // Preservar query parameters
+  const queryString = Object.keys(req.query).length > 0 
+    ? `?${new URLSearchParams(req.query as Record<string, string>).toString()}` 
+    : '';
+  
+  // Redirecionar para a nova URL
+  return res.redirect(307, `${newPath}${queryString}`);
 };
 
 export default apiPrefixMiddleware; 

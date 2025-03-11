@@ -177,14 +177,17 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Sanitização de dados
+// Middleware de sanitização de dados
 app.use(sanitizeData);
-
-// Documentação Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 
 // Middleware para adicionar o prefixo /api/ às rotas que não o possuem
 app.use(apiPrefixMiddleware);
+
+// Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API
+app.use('/api', routes);
+
+// Documentação Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 
 // Rota de status
 app.get('/api/status', (req, res) => {
@@ -204,9 +207,6 @@ app.get('/api/auth-recovery.js', (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.sendFile(path.join(__dirname, 'public', 'auth-recovery.js'));
 });
-
-// Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API
-app.use('/api', routes);
 
 // Adicionar o middleware de tratamento de erros do Sentry antes do handler de erros padrão
 if (process.env.NODE_ENV === 'production') {
