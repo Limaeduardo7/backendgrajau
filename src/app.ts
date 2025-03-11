@@ -134,8 +134,12 @@ app.use(limiter);
 
 // Middlewares
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Adicionar suporte para form-data
 
-// Middleware de recuperação de sessão (antes de morgan para capturar problemas de autenticação)
+// Middleware de sanitização de dados
+app.use(sanitizeData);
+
+// Middleware de recuperação de sessão
 app.use(sessionRecoveryMiddleware);
 
 // Servir arquivos estáticos da pasta public
@@ -153,7 +157,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   
   if (authHeader) {
     const token = authHeader.startsWith('Bearer ') 
-      ? authHeader.substring(7, 15) + '...' // Mostrar apenas parte do token por segurança
+      ? authHeader.substring(7, 15) + '...'
       : authHeader.substring(0, 8) + '...';
     
     logger.debug(`${method} ${url} - IP: ${ip} - Token: ${token}`);
@@ -161,7 +165,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     logger.debug(`${method} ${url} - IP: ${ip} - Sem token`);
   }
   
-  // Registrar o tempo de resposta
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
@@ -176,9 +179,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   
   next();
 });
-
-// Middleware de sanitização de dados
-app.use(sanitizeData);
 
 // Middleware para adicionar o prefixo /api/ às rotas que não o possuem
 app.use(apiPrefixMiddleware);
