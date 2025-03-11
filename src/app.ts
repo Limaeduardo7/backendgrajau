@@ -179,6 +179,34 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Adicionar rota de teste para POST
+app.post('/api/test-post', (req: Request, res: Response) => {
+  logger.debug('Recebendo requisição POST em /api/test-post');
+  logger.debug('Headers:', req.headers);
+  logger.debug('Body:', req.body);
+  return res.status(200).json({ 
+    message: 'POST funcionando corretamente',
+    receivedData: {
+      headers: req.headers,
+      body: req.body
+    }
+  });
+});
+
+// Rota direta para blog posts
+app.post('/api/blog/posts-direct', (req: Request, res: Response) => {
+  logger.debug('Recebendo requisição POST em /api/blog/posts-direct');
+  logger.debug('Headers:', req.headers);
+  logger.debug('Body:', req.body);
+  return res.status(200).json({ 
+    message: 'POST direto para blog posts funcionando corretamente',
+    receivedData: {
+      headers: req.headers,
+      body: req.body
+    }
+  });
+});
+
 // Documentação Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 

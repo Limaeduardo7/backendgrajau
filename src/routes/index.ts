@@ -15,6 +15,7 @@ import { requireAuth, validateUser } from '../middlewares/auth.middleware';
 import auditRoutes from './audit.routes';
 import { AuthController } from '../controllers/auth.controller';
 import transitionRoutes from './transition.routes';
+import logger from '../config/logger';
 
 const router = Router();
 const authController = new AuthController();
@@ -22,6 +23,20 @@ const authController = new AuthController();
 // Rota de teste/saúde
 router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', message: 'API funcionando corretamente' });
+});
+
+// Rota de teste para POST do blog
+router.post('/blog-posts-test', (req: Request, res: Response) => {
+  logger.debug('Recebendo requisição POST em /blog-posts-test');
+  logger.debug('Headers:', req.headers);
+  logger.debug('Body:', req.body);
+  return res.status(200).json({ 
+    message: 'POST para blog funcionando corretamente',
+    receivedData: {
+      headers: req.headers,
+      body: req.body
+    }
+  });
 });
 
 // Rota protegida de teste
@@ -51,6 +66,8 @@ router.use('/jobs', jobRoutes);
 router.use('/professionals', professionalRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/blog', blogRoutes);
+// Montar o blog em uma rota alternativa também
+router.use('/blogv2', blogRoutes);
 router.use('/email', emailRoutes);
 router.use('/admin', adminRoutes);
 router.use('/payments', paymentRoutes);
