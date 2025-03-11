@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { BlogController } from '../controllers/blog.controller';
 import { requireAuth, validateUser, requireRole } from '../middlewares/auth.middleware';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
+import logger from '../config/logger';
 
 const router = Router();
 const blogController = new BlogController();
@@ -17,12 +18,50 @@ const handlePublicRouteErrors = (handler: (req: Request, res: Response) => Promi
     }
   };
 
-// Rotas protegidas - devem vir ANTES das rotas com parâmetros
+// Rotas públicas
+router.get('/', handlePublicRouteErrors(blogController.list));
+router.get('/stats', handlePublicRouteErrors(blogController.getBlogStats));
+
+// Posts - rotas públicas
+router.get('/posts', handlePublicRouteErrors(blogController.list));
+router.get('/posts/all', handlePublicRouteErrors(blogController.getAllPosts));
+router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
+  req.query.featured = 'true';
+  return blogController.list(req, res);
+}));
+router.get('/posts/published', handlePublicRouteErrors(blogController.getPublishedPosts));
+router.get('/posts/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
+router.get('/posts/:id', handlePublicRouteErrors(blogController.getById));
+
+// Categorias - rotas públicas
+router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
+router.get('/categories/:id', handlePublicRouteErrors(blogController.getCategoryById));
+
+// Tags - rotas públicas
+router.get('/tags', handlePublicRouteErrors(blogController.listTags));
+
+// Comentários - rotas públicas
+router.get('/posts/:postId/comments', handlePublicRouteErrors(blogController.getCommentsByPostId));
+
+// Middleware de autenticação para rotas protegidas
+router.use((req: Request, res: Response, next: NextFunction) => {
+  logger.debug(`[Blog Routes] Requisição recebida: ${req.method} ${req.path}`);
+  logger.debug(`[Blog Routes] Headers:`, req.headers);
+  next();
+});
+
 router.use(requireAuth);
 router.use(validateUser);
 
 // Rotas de posts que requerem autenticação
-router.post('/posts', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.create);
+router.post('/posts', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), (req: Request, res: Response, next: NextFunction) => {
+  logger.debug('[Blog Routes] Requisição POST /posts recebida');
+  logger.debug('[Blog Routes] User:', (req as any).user);
+  logger.debug('[Blog Routes] Body:', req.body);
+  logger.debug('[Blog Routes] File:', req.file);
+  blogController.create(req as any, res);
+});
+
 router.get('/posts/drafts', requireRole(['ADMIN', 'EDITOR']), blogController.getDraftPosts);
 router.put('/posts/:id', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image', 1), blogController.update);
 router.delete('/posts/:id', requireRole(['ADMIN', 'EDITOR']), blogController.delete);
@@ -53,30 +92,5 @@ router.post('/upload', requireRole(['ADMIN', 'EDITOR']), uploadMiddleware('image
   const imageUrl = `/uploads/${req.file.filename}`;
   return res.status(201).json({ url: imageUrl });
 });
-
-// Rotas públicas - devem vir DEPOIS das rotas protegidas
-router.get('/', handlePublicRouteErrors(blogController.list));
-router.get('/stats', handlePublicRouteErrors(blogController.getBlogStats));
-
-// Posts - rotas públicas
-router.get('/posts', handlePublicRouteErrors(blogController.list));
-router.get('/posts/all', handlePublicRouteErrors(blogController.getAllPosts));
-router.get('/posts/featured', handlePublicRouteErrors((req, res) => {
-  req.query.featured = 'true';
-  return blogController.list(req, res);
-}));
-router.get('/posts/published', handlePublicRouteErrors(blogController.getPublishedPosts));
-router.get('/posts/slug/:slug', handlePublicRouteErrors(blogController.getBySlug));
-router.get('/posts/:id', handlePublicRouteErrors(blogController.getById));
-
-// Categorias - rotas públicas
-router.get('/categories', handlePublicRouteErrors(blogController.listCategories));
-router.get('/categories/:id', handlePublicRouteErrors(blogController.getCategoryById));
-
-// Tags - rotas públicas
-router.get('/tags', handlePublicRouteErrors(blogController.listTags));
-
-// Comentários - rotas públicas
-router.get('/posts/:postId/comments', handlePublicRouteErrors(blogController.getCommentsByPostId));
 
 export default router; 
