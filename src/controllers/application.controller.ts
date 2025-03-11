@@ -3,26 +3,50 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import logger from '../config/logger';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
+import { captureException } from '../config/sentry';
 
-class ApplicationController {
-  applyToJob = async (req: Request, res: Response) => {
+// Definindo uma interface para estender o Request
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    clerkId: string;
+    role: Role;
+    email?: string;
+  };
+}
+
+export class ApplicationController {
+  async applyToJob(req: AuthRequest, res: Response) {
     try {
       const { jobId } = req.params;
       const { coverLetter } = req.body;
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
-      // Verificar se a vaga existe
+      if (!jobId) {
+        throw new ApiError(400, 'ID da vaga é obrigatório');
+      }
+
+      // Verificar se a vaga existe e incluir a relação com business
       const job = await prisma.job.findUnique({
-        where: { id: jobId }
+        where: { id: jobId },
+        include: {
+          business: {
+            select: {
+              id: true,
+              name: true,
+              userId: true
+            }
+          }
+        }
       });
 
       if (!job) {
-        return res.status(404).json({ error: 'Vaga não encontrada' });
+        throw new ApiError(404, 'Vaga não encontrada');
       }
 
       // Verificar se o usuário já se candidatou a esta vaga
@@ -34,7 +58,7 @@ class ApplicationController {
       });
 
       if (existingApplication) {
-        return res.status(400).json({ error: 'Você já se candidatou a esta vaga' });
+        throw new ApiError(400, 'Você já se candidatou a esta vaga');
       }
 
       // Verificar se o usuário tem um perfil profissional
@@ -43,7 +67,7 @@ class ApplicationController {
       });
 
       if (!professional) {
-        return res.status(400).json({ error: 'Você precisa ter um perfil profissional para se candidatar a vagas' });
+        throw new ApiError(400, 'Você precisa ter um perfil profissional para se candidatar a vagas');
       }
 
       // Criar a candidatura
@@ -54,80 +78,126 @@ class ApplicationController {
           coverLetter: coverLetter || null,
           status: 'PENDING',
           resumeUrl: professional.portfolio?.[0] || ''
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
+          job: {
+            include: {
+              business: {
+                select: {
+                  name: true
+                }
+              }
+            }
+          }
         }
       });
 
-      return res.status(201).json(application);
+      res.status(201).json(application);
     } catch (error) {
-      logger.error('Erro ao candidatar-se à vaga:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao candidatar-se à vaga' });
     }
   }
 
-  getJobApplications = async (req: Request, res: Response) => {
+  async getJobApplications(req: AuthRequest, res: Response) {
     try {
       const { jobId } = req.params;
       const userId = req.user?.id;
+      const isAdmin = req.user?.role === Role.ADMIN;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
       // Verificar se a vaga existe e pertence ao usuário
       const job = await prisma.job.findUnique({
         where: { id: jobId },
         include: {
-          business: true
+          business: {
+            select: {
+              id: true,
+              name: true,
+              userId: true
+            }
+          }
         }
       });
       
       if (!job) {
-        return res.status(404).json({ error: 'Vaga não encontrada' });
+        throw new ApiError(404, 'Vaga não encontrada');
       }
       
       // Verificar se o usuário é o dono da empresa ou um admin
-      const isAdmin = req.user?.role === 'ADMIN';
-      const isBusinessOwner = job.business.userId === userId;
-      
-      if (!isBusinessOwner && !isAdmin) {
-        return res.status(403).json({ error: 'Você não tem permissão para acessar as candidaturas desta vaga' });
+      if (!isAdmin && job.business.userId !== userId) {
+        throw new ApiError(403, 'Você não tem permissão para acessar as candidaturas desta vaga');
       }
 
-      const applications = await prisma.application.findMany({
-        where: { jobId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true
+      const [applications, total] = await Promise.all([
+        prisma.application.findMany({
+          where: { jobId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true
+              }
             }
-          }
-        } as Prisma.ApplicationInclude,
-        orderBy: { createdAt: 'desc' }
-      }) || [];
+          },
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.application.count({ where: { jobId } })
+      ]);
+      
+      const totalPages = Math.ceil(total / limit);
       
       logger.info(`Retornando ${applications.length} candidaturas para a vaga ${jobId}`);
-      return res.json(applications);
+      res.json({
+        applications,
+        total,
+        page,
+        totalPages
+      });
     } catch (error) {
-      logger.error('Erro ao obter candidaturas para vaga:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao listar candidaturas' });
     }
   }
   
-  getMyApplications = async (req: Request, res: Response) => {
+  async getMyApplications(req: AuthRequest, res: Response) {
     try {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
       const applications = await prisma.application.findMany({
@@ -145,29 +215,36 @@ class ApplicationController {
               }
             }
           }
-        } as Prisma.ApplicationInclude,
+        },
         orderBy: { createdAt: 'desc' }
       }) || [];
       
       logger.info(`Retornando ${applications.length} candidaturas para o usuário ${userId}`);
-      return res.json(applications);
+      res.json(applications);
     } catch (error) {
       logger.error('Erro ao obter candidaturas do usuário:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao listar candidaturas' });
     }
   }
 
-  updateApplicationStatus = async (req: Request, res: Response) => {
+  async updateApplicationStatus(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const { status, message } = req.body;
       const userId = req.user?.id;
+      const isAdmin = req.user?.role === Role.ADMIN;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
       // Verificar se a candidatura existe
@@ -176,25 +253,26 @@ class ApplicationController {
         include: {
           job: {
             include: {
-              business: true
+              business: {
+                select: {
+                  id: true,
+                  name: true,
+                  userId: true
+                }
+              }
             }
           },
           user: true
-        } as Prisma.ApplicationInclude
+        }
       });
 
       if (!application) {
-        return res.status(404).json({ error: 'Candidatura não encontrada' });
+        throw new ApiError(404, 'Candidatura não encontrada');
       }
 
       // Verificar se o usuário é o dono da empresa ou um admin
-      const isAdmin = req.user?.role === 'ADMIN';
-      // Usando uma asserção de tipo para resolver o problema de tipagem
-      const jobWithBusiness = application.job as any;
-      const isBusinessOwner = jobWithBusiness.business?.userId === userId;
-
-      if (!isBusinessOwner && !isAdmin) {
-        return res.status(403).json({ error: 'Você não tem permissão para atualizar esta candidatura' });
+      if (!isAdmin && application.job.business.userId !== userId) {
+        throw new ApiError(403, 'Você não tem permissão para atualizar esta candidatura');
       }
 
       // Atualizar status da candidatura
@@ -206,11 +284,16 @@ class ApplicationController {
         include: {
           job: {
             include: {
-              business: true
+              business: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
             }
           },
           user: true
-        } as Prisma.ApplicationInclude
+        }
       });
 
       // Enviar e-mail de notificação
@@ -238,39 +321,55 @@ class ApplicationController {
         );
       }
 
-      return res.json(updatedApplication);
+      res.json(updatedApplication);
     } catch (error) {
       logger.error('Erro ao atualizar status da candidatura:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao atualizar status da candidatura' });
     }
   }
 
-  cancelApplication = async (req: Request, res: Response) => {
+  async cancelApplication(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
+      const isAdmin = req.user?.role === Role.ADMIN;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Usuário não autenticado' });
+        throw new ApiError(401, 'Usuário não autenticado');
       }
 
       // Verificar se a candidatura existe e pertence ao usuário
       const application = await prisma.application.findUnique({
         where: { id },
         include: {
-          job: true
-        } as Prisma.ApplicationInclude
+          job: {
+            include: {
+              business: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
       });
 
       if (!application) {
-        return res.status(404).json({ error: 'Candidatura não encontrada' });
+        throw new ApiError(404, 'Candidatura não encontrada');
       }
 
-      if (application.userId !== userId) {
-        return res.status(403).json({ error: 'Você não tem permissão para cancelar esta candidatura' });
+      if (!isAdmin && application.userId !== userId) {
+        throw new ApiError(403, 'Você não tem permissão para cancelar esta candidatura');
       }
 
       // Cancelar candidatura
@@ -278,15 +377,19 @@ class ApplicationController {
         where: { id }
       });
 
-      return res.json({ success: true, message: 'Candidatura cancelada com sucesso' });
+      res.json({ success: true, message: 'Candidatura cancelada com sucesso' });
     } catch (error) {
       logger.error('Erro ao cancelar candidatura:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao cancelar candidatura' });
     }
   }
-}
-
-export default new ApplicationController(); 
+} 

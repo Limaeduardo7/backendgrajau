@@ -1,10 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { ClerkExpressRequireAuth } from '@clerk/clerk-sdk-node';
 import prisma from '../config/prisma';
-import { Status } from '@prisma/client';
+import { Status, Role } from '@prisma/client';
 import logger from '../config/logger';
 import { clerkClient } from '@clerk/clerk-sdk-node';
 import jwt from 'jsonwebtoken';
+import { Clerk } from '@clerk/backend';
+import { ApiError } from '../utils/ApiError';
+
+const clerk = Clerk({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // Lista de tokens problemáticos conhecidos
 const PROBLEM_TOKENS = [
@@ -19,90 +23,108 @@ declare global {
       user?: {
         id: string;
         clerkId: string;
-        role: string;
+        role: Role;
         email?: string;
       };
     }
   }
 }
 
+export interface AuthRequest extends Request {
+  user?: any;
+}
+
 // Middleware para verificar autenticação usando Clerk
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Verificar se o token está no header de autorização
+    // Verificar se há um token de autorização
     const authHeader = req.headers.authorization;
-    
-    // Se não houver token, apenas continuar sem informações do usuário
     if (!authHeader) {
-      logger.debug(`Acesso sem token para ${req.originalUrl}`);
-      return next();
+      logger.warn('Nenhum token de autorização fornecido');
+      return res.status(401).json({ error: 'Não autorizado - Token não fornecido' });
     }
 
-    // Extrair o token do header
-    const token = authHeader.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : authHeader;
-
+    const token = authHeader.split(' ')[1];
     if (!token) {
-      logger.debug(`Token vazio para ${req.originalUrl}`);
-      return next();
+      logger.warn('Token vazio ou inválido');
+      return res.status(401).json({ error: 'Não autorizado - Token inválido' });
     }
 
     // Verificar se é um token problemático conhecido
     if (PROBLEM_TOKENS.includes(token)) {
-      logger.info(`Token problemático detectado para ${req.originalUrl}, mas permitindo acesso`);
-      return next();
+      logger.warn(`Token problemático detectado: ${token}`);
+      return res.status(401).json({ error: 'Não autorizado - Token inválido' });
     }
 
-    // Tentar verificar com Clerk apenas para obter informações do usuário, mas não bloquear acesso
-    try {
-      const session = await clerkClient.sessions.verifySession(token, token);
-      const clerkUser = await clerkClient.users.getUser(session.userId);
+    // Verificar o token com o Clerk
+    const session = await clerk.sessions.getSession(token);
+    if (!session) {
+      logger.warn('Sessão não encontrada para o token fornecido');
+      return res.status(401).json({ error: 'Não autorizado - Sessão inválida' });
+    }
+
+    const userId = session.userId;
+    logger.debug(`ID do usuário obtido do Clerk: ${userId}`);
+
+    // Buscar usuário no banco de dados
+    let user = await prisma.user.findFirst({
+      where: { clerkId: userId }
+    });
+
+    // Se o usuário não existir, criar um novo com papel de ADMIN
+    if (!user) {
+      logger.info(`Usuário não encontrado no banco de dados. Criando novo usuário com ID do Clerk: ${userId}`);
       
-      // Buscar usuário no banco de dados
-      const user = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id }
+      const clerkUser = await clerkClient.users.getUser(userId);
+      
+      user = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          name: `${clerkUser.firstName} ${clerkUser.lastName}`,
+          email: clerkUser.emailAddresses[0].emailAddress,
+          role: Role.ADMIN,
+          status: Status.PENDING
+        }
       });
-
-      if (user) {
-        req.user = {
-          id: user.id,
-          clerkId: user.clerkId,
-          role: user.role,
-          email: user.email
-        };
-        logger.debug(`Usuário ${user.id} identificado para ${req.originalUrl}`);
-      }
-    } catch (error) {
-      // Apenas logar o erro, mas não bloquear o acesso
-      logger.debug(`Erro ao verificar token para ${req.originalUrl}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      logger.info(`Novo usuário criado: ${user.id}`);
     }
 
-    // Sempre permitir acesso
+    // Adicionar usuário ao objeto de requisição
+    req.user = {
+      id: user.id,
+      clerkId: user.clerkId,
+      role: user.role,
+      email: user.email
+    };
+
     next();
   } catch (error) {
-    logger.error('Erro no middleware de autenticação:', error);
-    // Mesmo em caso de erro, permitir acesso
-    next();
+    logger.error('Erro ao verificar autenticação:', error);
+    return res.status(401).json({ error: 'Não autorizado - Erro na verificação' });
   }
 };
 
 // Middleware para verificar role do usuário
-export const requireRole = (roles: string[]) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+export const requireRole = (roles: Role[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        return res.status(401).json({ error: 'Não autorizado' });
+        logger.warn('Usuário não encontrado na requisição');
+        return res.status(401).json({ error: 'Não autorizado - Usuário não encontrado' });
       }
 
-      // Verificar se o usuário tem a role necessária
-      if (!roles.includes(req.user.role)) {
-        return res.status(403).json({ error: 'Permissão insuficiente' });
+      const userRole = req.user.role;
+      
+      if (!roles.includes(userRole)) {
+        logger.warn(`Acesso negado - Usuário com papel ${userRole} tentou acessar rota que requer um dos papéis: ${roles.join(', ')}`);
+        return res.status(403).json({ error: 'Acesso negado - Papel insuficiente' });
       }
 
       next();
     } catch (error) {
-      next(error);
+      logger.error('Erro ao verificar papel do usuário:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   };
 };

@@ -3,14 +3,15 @@ import { ApiError } from '../utils/ApiError';
 import PaymentService from '../services/PaymentService';
 import prisma from '../config/prisma';
 import mercadopago from '../config/payment';
+import { Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
-    email: string;
+    role: Role;
+    email?: string;
   };
 }
 
@@ -148,7 +149,7 @@ class PaymentController {
   checkExpiringSubscriptions = async (req: AuthRequest, res: Response) => {
     try {
       // Verificar se o usuário é administrador
-      if (req.user?.role !== 'admin') {
+      if (req.user?.role !== Role.ADMIN) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
       
@@ -165,7 +166,7 @@ class PaymentController {
   processAutoRenewals = async (req: AuthRequest, res: Response) => {
     try {
       // Verificar se o usuário é administrador
-      if (req.user?.role !== 'admin') {
+      if (req.user?.role !== Role.ADMIN) {
         return res.status(403).json({ error: 'Acesso negado' });
       }
       

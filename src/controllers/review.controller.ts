@@ -1,243 +1,247 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
+import { captureException } from '../config/sentry';
+import logger from '../config/logger';
+import { Role } from '@prisma/client';
+
+// Definindo uma interface para estender o Request
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    clerkId: string;
+    role: Role;
+    email?: string;
+  };
+}
 
 export class ReviewController {
-  // Criar uma avaliação para empresa
-  async createBusinessReview(req: Request, res: Response) {
+  async create(req: AuthRequest, res: Response) {
     try {
-      const { businessId } = req.params;
-      const { rating, comment } = req.body;
+      const { rating, comment, businessId, professionalId } = req.body;
       const userId = req.user?.id;
-      
+
       if (!userId) {
         throw new ApiError(401, 'Usuário não autenticado');
       }
-      
-      // Verificar se a empresa existe
-      const business = await prisma.business.findUnique({
-        where: { id: businessId }
-      });
-      
-      if (!business) {
-        throw new ApiError(404, 'Empresa não encontrada');
+
+      if (!rating) {
+        throw new ApiError(400, 'A avaliação é obrigatória');
       }
-      
-      // Verificar se o usuário já avaliou esta empresa
+
+      if (!businessId && !professionalId) {
+        throw new ApiError(400, 'É necessário especificar um negócio ou profissional');
+      }
+
+      if (businessId && professionalId) {
+        throw new ApiError(400, 'Especifique apenas um negócio ou profissional');
+      }
+
+      // Verificar se o usuário já avaliou este negócio/profissional
       const existingReview = await prisma.review.findFirst({
         where: {
           userId,
-          businessId
+          OR: [
+            { businessId },
+            { professionalId }
+          ]
         }
       });
-      
+
       if (existingReview) {
-        throw new ApiError(400, 'Você já avaliou esta empresa');
+        throw new ApiError(400, 'Você já avaliou este negócio/profissional');
       }
-      
-      // Criar a avaliação
+
       const review = await prisma.review.create({
         data: {
           rating,
           comment,
           userId,
-          businessId
-        }
-      });
-      
-      return res.status(201).json(review);
-    } catch (error) {
-      console.error('Erro ao criar avaliação:', error);
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Erro ao criar avaliação' });
-    }
-  }
-  
-  // Criar uma avaliação para profissional
-  async createProfessionalReview(req: Request, res: Response) {
-    try {
-      const { professionalId } = req.params;
-      const { rating, comment } = req.body;
-      const userId = req.user?.id;
-      
-      if (!userId) {
-        throw new ApiError(401, 'Usuário não autenticado');
-      }
-      
-      // Verificar se o profissional existe
-      const professional = await prisma.professional.findUnique({
-        where: { id: professionalId }
-      });
-      
-      if (!professional) {
-        throw new ApiError(404, 'Profissional não encontrado');
-      }
-      
-      // Verificar se o usuário já avaliou este profissional
-      const existingReview = await prisma.review.findFirst({
-        where: {
-          userId,
+          businessId,
           professionalId
-        }
-      });
-      
-      if (existingReview) {
-        throw new ApiError(400, 'Você já avaliou este profissional');
-      }
-      
-      // Criar a avaliação
-      const review = await prisma.review.create({
-        data: {
-          rating,
-          comment,
-          userId,
-          professionalId
-        }
-      });
-      
-      return res.status(201).json(review);
-    } catch (error) {
-      console.error('Erro ao criar avaliação:', error);
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Erro ao criar avaliação' });
-    }
-  }
-  
-  // Listar avaliações de uma empresa
-  async getBusinessReviews(req: Request, res: Response) {
-    try {
-      const { businessId } = req.params;
-      
-      // Verificar se a empresa existe
-      const business = await prisma.business.findUnique({
-        where: { id: businessId }
-      });
-      
-      if (!business) {
-        throw new ApiError(404, 'Empresa não encontrada');
-      }
-      
-      // Buscar avaliações
-      const reviews = await prisma.review.findMany({
-        where: { businessId },
+        },
         include: {
           user: {
             select: {
-              id: true,
-              name: true
+              name: true,
+              email: true
             }
           }
-        },
-        orderBy: { createdAt: 'desc' }
+        }
       });
-      
-      // Calcular média de avaliações
-      const averageRating = reviews.length > 0
-        ? reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
-        : 0;
-      
-      return res.json({
-        reviews,
-        averageRating,
-        totalReviews: reviews.length
-      });
+
+      res.status(201).json(review);
     } catch (error) {
-      console.error('Erro ao listar avaliações:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao listar avaliações' });
     }
   }
-  
-  // Listar avaliações de um profissional
-  async getProfessionalReviews(req: Request, res: Response) {
+
+  async list(req: Request, res: Response) {
     try {
-      const { professionalId } = req.params;
-      
-      // Verificar se o profissional existe
-      const professional = await prisma.professional.findUnique({
-        where: { id: professionalId }
-      });
-      
-      if (!professional) {
-        throw new ApiError(404, 'Profissional não encontrado');
+      const { businessId, professionalId } = req.query;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      if (!businessId && !professionalId) {
+        throw new ApiError(400, 'É necessário especificar um negócio ou profissional');
       }
-      
-      // Buscar avaliações
-      const reviews = await prisma.review.findMany({
-        where: { professionalId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true
+
+      const where: any = {};
+      if (businessId) where.businessId = businessId;
+      if (professionalId) where.professionalId = professionalId;
+
+      const [reviews, total] = await Promise.all([
+        prisma.review.findMany({
+          where,
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true
+              }
             }
+          },
+          skip,
+          take: limit,
+          orderBy: {
+            createdAt: 'desc'
           }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-      
-      // Calcular média de avaliações
-      const averageRating = reviews.length > 0
-        ? reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
-        : 0;
-      
-      return res.json({
+        }),
+        prisma.review.count({ where })
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      res.json({
         reviews,
-        averageRating,
-        totalReviews: reviews.length
+        total,
+        page,
+        totalPages
       });
     } catch (error) {
-      console.error('Erro ao listar avaliações:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao listar avaliações' });
     }
   }
-  
-  // Excluir uma avaliação
-  async deleteReview(req: Request, res: Response) {
+
+  async delete(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
-      const isAdmin = req.user?.role === 'ADMIN';
-      
+
       if (!userId) {
         throw new ApiError(401, 'Usuário não autenticado');
       }
-      
-      // Buscar a avaliação
+
       const review = await prisma.review.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          user: true
+        }
       });
-      
+
       if (!review) {
         throw new ApiError(404, 'Avaliação não encontrada');
       }
-      
+
       // Verificar se o usuário é o autor da avaliação ou um admin
+      const isAdmin = req.user?.role === Role.ADMIN;
       if (review.userId !== userId && !isAdmin) {
         throw new ApiError(403, 'Você não tem permissão para excluir esta avaliação');
       }
-      
-      // Excluir a avaliação
+
       await prisma.review.delete({
         where: { id }
       });
-      
-      return res.json({ success: true, message: 'Avaliação excluída com sucesso' });
+
+      res.json({ message: 'Avaliação excluída com sucesso' });
     } catch (error) {
-      console.error('Erro ao excluir avaliação:', error);
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json({ error: error.message });
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
       }
-      return res.status(500).json({ error: 'Erro ao excluir avaliação' });
+    }
+  }
+
+  async update(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { rating, comment } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        throw new ApiError(401, 'Usuário não autenticado');
+      }
+
+      const review = await prisma.review.findUnique({
+        where: { id },
+        include: {
+          user: true
+        }
+      });
+
+      if (!review) {
+        throw new ApiError(404, 'Avaliação não encontrada');
+      }
+
+      // Verificar se o usuário é o autor da avaliação ou um admin
+      const isAdmin = req.user?.role === Role.ADMIN;
+      if (review.userId !== userId && !isAdmin) {
+        throw new ApiError(403, 'Você não tem permissão para atualizar esta avaliação');
+      }
+
+      const updatedReview = await prisma.review.update({
+        where: { id },
+        data: {
+          rating,
+          comment
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      res.json(updatedReview);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else if (error instanceof Error) {
+        captureException(error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      } else {
+        const unknownError = new Error('Erro desconhecido');
+        captureException(unknownError);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
     }
   }
 }

@@ -5,6 +5,7 @@ import { ApiError } from '../utils/ApiError';
 import logger from '../config/logger';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 
 // Estender o tipo Request para incluir body tipado
 interface Request extends ExpressRequest {
@@ -12,7 +13,7 @@ interface Request extends ExpressRequest {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }

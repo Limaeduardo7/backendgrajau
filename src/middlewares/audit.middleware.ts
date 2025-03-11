@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import AuditService from '../services/AuditService';
+import { Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }

@@ -6,6 +6,7 @@ import { join } from 'path';
 import slugify from 'slugify';
 import { withRetry } from '../utils/retryHandler';
 import logger from '../config/logger';
+import { Role } from '@prisma/client';
 
 interface ListPostsParams {
   page: number;
@@ -230,7 +231,7 @@ export class BlogService {
 
     if (post.authorId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para atualizar este post');
       }
     }
@@ -280,7 +281,7 @@ export class BlogService {
 
     if (post.authorId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para deletar este post');
       }
     }
@@ -325,7 +326,7 @@ export class BlogService {
 
     if (comment.userId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para deletar este comentário');
       }
     }
@@ -414,7 +415,7 @@ export class BlogService {
     
     // Verificar se o usuário é admin
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Você não tem permissão para atualizar esta categoria');
     }
 
@@ -442,7 +443,7 @@ export class BlogService {
     
     // Verificar se o usuário é admin
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Você não tem permissão para deletar esta categoria');
     }
 
@@ -502,7 +503,7 @@ export class BlogService {
     // Verificar se o usuário é o autor do comentário ou um admin
     if (comment.userId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para excluir este comentário');
       }
     }
@@ -561,7 +562,7 @@ export class BlogService {
     // Verificar se o usuário é o autor ou admin
     if (post.authorId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para publicar este post');
       }
     }
@@ -590,7 +591,7 @@ export class BlogService {
     // Verificar se o usuário é o autor ou admin
     if (post.authorId !== userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
+      if (user?.role !== Role.ADMIN) {
         throw new ApiError(403, 'Você não tem permissão para despublicar este post');
       }
     }
@@ -618,7 +619,7 @@ export class BlogService {
 
     // Apenas admin pode destacar posts
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Apenas administradores podem destacar posts');
     }
 
@@ -642,7 +643,7 @@ export class BlogService {
 
     // Apenas admin pode remover destaque de posts
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Apenas administradores podem remover destaque de posts');
     }
 
@@ -752,7 +753,7 @@ export class BlogService {
   async approveComment(commentId: string, userId: string) {
     // Verificar se o usuário é admin
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Apenas administradores podem aprovar comentários');
     }
 
@@ -773,7 +774,7 @@ export class BlogService {
   async rejectComment(commentId: string, userId: string) {
     // Verificar se o usuário é admin
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.role !== 'ADMIN') {
+    if (user?.role !== Role.ADMIN) {
       throw new ApiError(403, 'Apenas administradores podem rejeitar comentários');
     }
 

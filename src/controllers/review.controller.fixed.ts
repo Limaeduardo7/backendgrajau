@@ -3,13 +3,14 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { captureException } from '../config/sentry';
 import logger from '../config/logger';
+import { Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }
@@ -223,7 +224,7 @@ export class ReviewController {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
-      const isAdmin = req.user?.role === 'ADMIN';
+      const isAdmin = req.user?.role === Role.ADMIN;
       
       if (!userId) {
         throw new ApiError(401, 'Usuário não autenticado');

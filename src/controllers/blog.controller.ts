@@ -2,13 +2,15 @@ import { Request, Response } from 'express';
 import { BlogService } from '../services/blog.service';
 import { ApiError } from '../utils/ApiError';
 import prisma from '../config/prisma';
+import logger from '../config/logger';
+import { Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }
@@ -20,6 +22,20 @@ export class BlogController {
     this.blogService = new BlogService();
   }
 
+  // Método para obter estatísticas do blog
+  getBlogStats = async (req: Request, res: Response) => {
+    try {
+      const stats = await this.blogService.getBlogStats();
+      res.json({ data: stats });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    }
+  };
+
   // Método para obter posts em rascunho (não publicados)
   getDraftPosts = async (req: AuthRequest, res: Response) => {
     try {
@@ -27,8 +43,8 @@ export class BlogController {
       const limit = parseInt(req.query.limit as string) || 10;
       const skip = (page - 1) * limit;
       
-      // Verificar se o usuário é admin (caso o middleware não esteja sendo usado)
-      if (!req.user || (req.user.role !== 'ADMIN' && req.user.email !== 'anunciargrajau@gmail.com')) {
+      // Verificar se o usuário é admin
+      if (!req.user || (req.user.role !== Role.ADMIN && req.user.email !== 'anunciargrajau@gmail.com')) {
         return res.status(403).json({ error: 'Acesso não autorizado' });
       }
       
@@ -137,22 +153,38 @@ export class BlogController {
 
   create = async (req: AuthRequest, res: Response) => {
     try {
-      console.log('Recebendo requisição POST /blog/posts');
-      console.log('Headers:', req.headers);
-      console.log('Body:', req.body);
-      console.log('File:', req.file);
-      console.log('User:', req.user);
+      logger.info('Iniciando criação de post');
+      logger.debug('Headers:', req.headers);
+      logger.debug('Body:', req.body);
+      logger.debug('File:', req.file);
+      logger.debug('User:', req.user);
 
       const data = req.body;
       const userId = req.user?.id;
       const image = req.file;
 
       if (!userId) {
-        console.log('Erro: Usuário não autenticado');
+        logger.warn('Tentativa de criar post sem usuário autenticado');
         throw new ApiError(401, 'Usuário não autenticado');
       }
 
-      console.log('Criando post com dados:', {
+      // Verificar se o usuário tem permissão (ADMIN)
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user || user.role !== Role.ADMIN) {
+        logger.warn(`Usuário ${userId} sem permissão para criar posts`);
+        throw new ApiError(403, 'Você não tem permissão para criar posts');
+      }
+
+      // Validar dados obrigatórios
+      if (!data.title || !data.content || !data.categoryId) {
+        logger.warn('Dados obrigatórios faltando na criação do post');
+        throw new ApiError(400, 'Título, conteúdo e categoria são obrigatórios');
+      }
+
+      logger.info('Criando post com dados:', {
         ...data,
         image: image?.filename,
         authorId: userId,
@@ -164,10 +196,10 @@ export class BlogController {
         authorId: userId,
       });
 
-      console.log('Post criado com sucesso:', post);
+      logger.info(`Post criado com sucesso: ${post.id}`);
       res.status(201).json(post);
     } catch (error) {
-      console.error('Erro ao criar post:', error);
+      logger.error('Erro ao criar post:', error);
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });
       } else {
@@ -494,19 +526,6 @@ export class BlogController {
 
       const post = await this.blogService.unfeaturePost(id, userId);
       res.json({ data: post });
-    } catch (error) {
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Erro interno do servidor' });
-      }
-    }
-  };
-
-  getBlogStats = async (req: Request, res: Response) => {
-    try {
-      const stats = await this.blogService.getBlogStats();
-      res.json({ data: stats });
     } catch (error) {
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({ error: error.message });

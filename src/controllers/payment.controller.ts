@@ -3,13 +3,14 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import PaymentService from '../services/PaymentService';
 import EmailService from '../services/EmailService';
+import { Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }

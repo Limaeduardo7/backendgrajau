@@ -6,14 +6,14 @@ import { ApiError } from '../utils/ApiError';
 import EmailService from '../services/EmailService';
 import AuditService from '../services/AuditService';
 import ApprovalService from '../services/ApprovalService';
-import { Status } from '@prisma/client';
+import { Status, Role } from '@prisma/client';
 
 // Definindo uma interface para estender o Request
 interface AuthRequest extends Request {
   user?: {
     id: string;
     clerkId: string;
-    role: string;
+    role: Role;
     email?: string;
   };
 }
