@@ -10,7 +10,6 @@ import rateLimit from 'express-rate-limit';
 import { sanitizeData } from './middlewares/sanitizer.middleware';
 import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
-import apiPrefixMiddleware from './middlewares/apiPrefixMiddleware';
 import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
@@ -180,14 +179,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Middleware para adicionar o prefixo /api/ às rotas que não o possuem
-app.use(apiPrefixMiddleware);
+// Documentação Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 
 // Rotas - Importante: as rotas devem ser definidas APÓS o middleware de prefixo de API
 app.use('/api', routes);
-
-// Documentação Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 
 // Rota de status
 app.get('/api/status', (req, res) => {
