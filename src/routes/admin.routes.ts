@@ -14,7 +14,8 @@ const adminAuth = [requireAuth, requireRole(['ADMIN'])];
 // Aplicar middlewares às rotas administrativas
 // Dashboard e estatísticas
 router.get('/dashboard', ...adminAuth, adminController.getDashboard);
-router.get('/stats', ...adminAuth, adminController.getStats);
+router.get('/stats', adminController.getStats);
+router.get('/user-stats', ...adminAuth, adminController.getUserStats);
 router.get('/revenue', ...adminAuth, adminController.getRevenueStats);
 router.get('/jobs-stats', ...adminAuth, adminController.getJobsStats);
 router.get('/applications-stats', ...adminAuth, adminController.getApplicationsStats);

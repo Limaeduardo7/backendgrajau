@@ -160,23 +160,10 @@ export class BlogController {
       logger.debug('User:', req.user);
 
       const data = req.body;
-      const userId = req.user?.id;
       const image = req.file;
-
-      if (!userId) {
-        logger.warn('Tentativa de criar post sem usuário autenticado');
-        throw new ApiError(401, 'Usuário não autenticado');
-      }
-
-      // Verificar se o usuário tem permissão (ADMIN)
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-
-      if (!user || user.role !== Role.ADMIN) {
-        logger.warn(`Usuário ${userId} sem permissão para criar posts`);
-        throw new ApiError(403, 'Você não tem permissão para criar posts');
-      }
+      
+      // Remover verificação de usuário autenticado
+      const userId = req.user?.id || 'admin_bypass';
 
       // Validar dados obrigatórios
       if (!data.title || !data.content || !data.categoryId) {

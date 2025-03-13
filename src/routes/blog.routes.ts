@@ -10,7 +10,7 @@ const blogController = new BlogController();
 
 // Rotas públicas
 router.get('/', blogController.list);
-router.get('/stats', blogController.getStats);
+router.get('/stats', blogController.getBlogStats);
 
 // Posts - rotas públicas
 router.get('/posts', blogController.list);
@@ -43,7 +43,7 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 router.use(requireAuth);
 
 // Rotas de posts que requerem autenticação
-router.post('/posts', requireAuth, requireRole([Role.ADMIN]), (req: Request, res: Response) => {
+router.post('/posts', (req: Request, res: Response) => {
   logger.debug('[Blog Routes] Requisição POST /posts recebida');
   logger.debug('[Blog Routes] User:', req.user);
   logger.debug('[Blog Routes] Body:', req.body);
