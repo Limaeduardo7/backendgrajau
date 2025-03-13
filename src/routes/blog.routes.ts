@@ -33,6 +33,14 @@ router.get('/tags', blogController.listTags);
 // Comentários - rotas públicas
 router.get('/posts/:postId/comments', blogController.getCommentsByPostId);
 
+// Rota de posts pública (sem autenticação)
+router.post('/posts', (req: Request, res: Response) => {
+  logger.debug('[Blog Routes] Requisição POST /posts recebida');
+  logger.debug('[Blog Routes] User:', req.user);
+  logger.debug('[Blog Routes] Body:', req.body);
+  return blogController.create(req, res);
+});
+
 // Middleware de autenticação para rotas protegidas
 router.use((req: Request, res: Response, next: NextFunction) => {
   logger.debug(`[Blog Routes] Requisição recebida: ${req.method} ${req.path}`);
@@ -43,13 +51,6 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 router.use(requireAuth);
 
 // Rotas de posts que requerem autenticação
-router.post('/posts', (req: Request, res: Response) => {
-  logger.debug('[Blog Routes] Requisição POST /posts recebida');
-  logger.debug('[Blog Routes] User:', req.user);
-  logger.debug('[Blog Routes] Body:', req.body);
-  return blogController.create(req, res);
-});
-
 router.get('/posts/drafts', requireAuth, requireRole([Role.ADMIN]), blogController.getDraftPosts);
 router.put('/posts/:id', requireAuth, requireRole([Role.ADMIN]), uploadMiddleware('image', 1), blogController.update);
 router.delete('/posts/:id', requireAuth, requireRole([Role.ADMIN]), blogController.delete);
