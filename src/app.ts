@@ -28,6 +28,25 @@ app.use(cors({
   credentials: true
 }));
 
+// Configurações de segurança básicas
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting básico
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000
+}));
+
+// Middleware de sanitização global
+app.use(sanitizeData);
+
+// Middleware de log
+app.use(logRequest);
+
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
 // Rota bypass para posts do blog direta (sem auth)
@@ -137,30 +156,16 @@ if (process.env.NODE_ENV === 'production') {
   app.use(sentryRequestHandler);
 }
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'", "*"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "*"],
-      styleSrc: ["'self'", "'unsafe-inline'", "*"],
-      imgSrc: ["'self'", "data:", "blob:", "*"],
-      connectSrc: ["'self'", "https://anunciargrajaueregiao.com", "https://api.anunciargrajaueregiao.com", "*"]
-    }
-  },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false
-}));
-
-// Rate limiting
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}));
-
-// Middlewares de autenticação e sanitização
-app.use(sanitizeData);
-app.use(sessionRecoveryMiddleware);
-app.use(logRequest);
+// Middleware de autenticação (exceto para rotas bypass)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Não aplicar autenticação para a rota bypass
+  if (req.path === '/api/blog/posts' && req.method === 'POST') {
+    return next();
+  }
+  
+  // Aplicar middleware de autenticação para todas as outras rotas
+  return sessionRecoveryMiddleware(req, res, next);
+});
 
 // Rotas da API
 app.use('/api', routes);
