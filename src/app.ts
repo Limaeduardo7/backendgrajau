@@ -20,27 +20,48 @@ const app = express();
 // ATENÇÃO: Estas rotas são definidas antes de todos os middlewares
 // para garantir que não sejam afetadas por nenhuma configuração
 
+// Middleware CORS específico para a rota bypass de posts
+app.use('/api/blog/posts', (req: Request, res: Response, next: NextFunction) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Responder imediatamente para requisições OPTIONS
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 // Rota bypass para posts do blog direta (sem auth) - IMPLEMENTAÇÃO DIRETA
 app.post('/api/blog/posts', async (req: Request, res: Response) => {
   try {
+    logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
+    logger.debug('[BYPASS] Headers:', req.headers);
+    
     // Processar o corpo da requisição manualmente (já que estamos antes dos middlewares)
     if (!req.body || Object.keys(req.body).length === 0) {
+      logger.debug('[BYPASS] Corpo vazio, tentando processar manualmente');
       // Se o corpo já não foi processado, tente processar manualmente
       if (req.headers['content-type']?.includes('application/json')) {
         let data = '';
         req.on('data', chunk => {
           data += chunk;
+          logger.debug('[BYPASS] Recebido chunk de dados');
         });
         
         await new Promise<void>((resolve) => {
           req.on('end', () => {
             try {
               if (data) {
+                logger.debug('[BYPASS] Dados recebidos:', data);
                 req.body = JSON.parse(data);
+                logger.debug('[BYPASS] Dados parseados:', req.body);
               }
               resolve();
             } catch (e) {
-              logger.error('Erro ao processar JSON do corpo:', e);
+              logger.error('[BYPASS] Erro ao processar JSON do corpo:', e);
               req.body = {};
               resolve();
             }
@@ -49,9 +70,8 @@ app.post('/api/blog/posts', async (req: Request, res: Response) => {
       }
     }
 
-    logger.info('Iniciando criação de post (implementação direta)');
-    logger.debug('Headers:', req.headers);
-    logger.debug('Body:', req.body);
+    logger.info('[BYPASS] Iniciando criação de post');
+    logger.debug('[BYPASS] Body após processamento:', req.body);
     
     // Acessar o prisma diretamente
     const prisma = (await import('./config/prisma')).default;
