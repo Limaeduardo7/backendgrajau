@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
@@ -49,23 +49,24 @@ app.use(logRequest);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
-// Chave de API para o blog (em produção, use variável de ambiente)
-const BLOG_API_KEY = 'blog-secret-123';
+// Token fixo para bypass do blog
+const BYPASS_BLOG_TOKEN = 'Bearer bypass-blog-token-2024';
 
-// Middleware para verificar a chave de API do blog
-const verifyBlogApiKey = (req: Request, res: Response, next: NextFunction) => {
-  const apiKey = req.headers['x-api-key'];
+// Middleware para verificar o token de bypass do blog
+const verifyBlogBypass = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization;
   
-  if (!apiKey || apiKey !== BLOG_API_KEY) {
-    logger.warn('[BYPASS] Tentativa de acesso sem API key válida');
-    return res.status(401).json({ error: 'API key inválida ou não fornecida' });
+  if (!token || token !== BYPASS_BLOG_TOKEN) {
+    logger.warn('[BYPASS] Tentativa de acesso com token inválido:', token);
+    return res.status(401).json({ error: 'Token de autorização inválido ou não fornecido' });
   }
   
+  logger.info('[BYPASS] Token de bypass validado com sucesso');
   next();
 };
 
-// Rota bypass para posts do blog direta (com API key)
-app.post('/api/blog/posts', verifyBlogApiKey, async (req: Request, res: Response) => {
+// Rota bypass para posts do blog (com token fixo)
+app.post('/api/blog/posts', verifyBlogBypass, async (req: Request, res: Response) => {
   try {
     logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
     logger.debug('[BYPASS] Headers:', req.headers);
