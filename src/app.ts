@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   credentials: true
 }));
 
@@ -49,8 +49,23 @@ app.use(logRequest);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
-// Rota bypass para posts do blog direta (sem auth)
-app.post('/api/blog/posts', async (req: Request, res: Response) => {
+// Chave de API para o blog (em produção, use variável de ambiente)
+const BLOG_API_KEY = 'blog-secret-123';
+
+// Middleware para verificar a chave de API do blog
+const verifyBlogApiKey = (req: Request, res: Response, next: NextFunction) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (!apiKey || apiKey !== BLOG_API_KEY) {
+    logger.warn('[BYPASS] Tentativa de acesso sem API key válida');
+    return res.status(401).json({ error: 'API key inválida ou não fornecida' });
+  }
+  
+  next();
+};
+
+// Rota bypass para posts do blog direta (com API key)
+app.post('/api/blog/posts', verifyBlogApiKey, async (req: Request, res: Response) => {
   try {
     logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
     logger.debug('[BYPASS] Headers:', req.headers);
