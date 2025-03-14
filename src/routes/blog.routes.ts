@@ -8,7 +8,7 @@ const blogController = new BlogController();
 
 // Rotas de posts
 router.get('/', blogController.list);
-router.get('/stats', blogController.getBlogStats);
+
 router.get('/posts', blogController.list);
 router.get('/posts/all', blogController.getAllPosts);
 router.get('/posts/featured', (req, res) => {
@@ -19,7 +19,7 @@ router.get('/posts/published', blogController.getPublishedPosts);
 router.get('/posts/drafts', blogController.getDraftPosts);
 router.get('/posts/slug/:slug', blogController.getBySlug);
 router.get('/posts/:id', blogController.getById);
-router.post('/posts', blogController.create);
+// Removida a rota POST /posts para evitar conflitos com a rota bypass
 router.put('/posts/:id', uploadMiddleware('image', 1), blogController.update);
 router.delete('/posts/:id', blogController.delete);
 
@@ -30,21 +30,19 @@ router.put('/posts/:id/feature', blogController.featurePost);
 router.put('/posts/:id/unfeature', blogController.unfeaturePost);
 
 // Rotas de categorias
+router.post('/categories', blogController.createCategory);
 router.get('/categories', blogController.listCategories);
 router.get('/categories/:id', blogController.getCategoryById);
-router.post('/categories', blogController.createCategory);
 router.put('/categories/:id', blogController.updateCategory);
 router.delete('/categories/:id', blogController.deleteCategory);
 
-// Rotas de tags
-router.get('/tags', blogController.listTags);
-
 // Rotas de comentários
-router.get('/posts/:postId/comments', blogController.getCommentsByPostId);
 router.post('/posts/:id/comments', blogController.addComment);
 router.delete('/posts/:id/comments/:commentId', blogController.deleteComment);
 router.put('/posts/:postId/comments/:commentId/approve', blogController.approveComment);
-router.put('/posts/:postId/comments/:commentId/reject', blogController.rejectComment);
+
+// Rotas de tags
+router.get('/tags', blogController.listTags);
 
 // Rota para upload de imagens
 router.post('/upload', uploadMiddleware('image', 1), (req, res) => {
