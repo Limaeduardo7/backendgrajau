@@ -162,6 +162,11 @@ app.post('/api/blog/posts', verifyJWT, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Já existe um post com este título' });
     }
     
+    if (!req.user?.id) {
+      logger.error('[BLOG] User ID não encontrado na requisição');
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
     // Criar post usando o ID do usuário autenticado
     const post = await prisma.blogPost.create({
       data: {
@@ -170,7 +175,7 @@ app.post('/api/blog/posts', verifyJWT, async (req: Request, res: Response) => {
         content: data.content,
         tags: data.tags || [],
         image: data.image || null,
-        authorId: req.user.id, // Usando ID do usuário autenticado
+        authorId: req.user.id,
         categoryId: data.categoryId,
         published: true,
         featured: false,
