@@ -14,12 +14,8 @@ import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import jwt from 'jsonwebtoken';
-import { Clerk } from '@clerk/clerk-sdk-node';
 
 const app = express();
-
-// Inicializar Clerk
-const clerk = new Clerk({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // Configurações básicas
 app.use(express.json());
@@ -60,11 +56,8 @@ app.use(logRequest);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
-// Chave secreta para gerar tokens JWT (em produção, use variável de ambiente)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
-
-// Middleware atualizado para verificar JWT do Clerk
-const verifyJWT = async (req: Request, res: Response, next: NextFunction) => {
+// Middleware para verificar JWT do Supabase
+const verifyJWT = (req: Request, res: Response, next: NextFunction) => {
   try {
     logger.info('[AUTH] Iniciando verificação do token');
     
@@ -82,20 +75,16 @@ const verifyJWT = async (req: Request, res: Response, next: NextFunction) => {
     const token = authHeader.split(' ')[1];
     
     try {
-      // Verificar o token com o Clerk
-      const session = await clerk.sessions.verifySession(token);
-      logger.debug('[AUTH] Sessão verificada:', session);
-
-      // Buscar informações do usuário
-      const user = await clerk.users.getUser(session.userId);
-      logger.debug('[AUTH] Usuário encontrado:', user);
+      // Verificar o token JWT usando a chave do Supabase
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      logger.debug('[AUTH] Token decodificado:', JSON.stringify(decoded, null, 2));
 
       // Adicionar informações do usuário à requisição
       req.user = {
-        id: user.id,
-        clerkId: user.id,
-        role: user.publicMetadata?.role || 'user',
-        email: user.emailAddresses[0]?.emailAddress
+        id: decoded.sub,
+        clerkId: decoded.sub, // Mantemos para compatibilidade
+        role: decoded.role || 'user',
+        email: decoded.email
       };
 
       logger.info('[AUTH] Token validado com sucesso. User:', JSON.stringify(req.user, null, 2));
