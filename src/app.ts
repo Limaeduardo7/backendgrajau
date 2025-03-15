@@ -13,6 +13,7 @@ import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentr
 import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 
@@ -49,24 +50,45 @@ app.use(logRequest);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
-// Token fixo para bypass do blog
-const BYPASS_BLOG_TOKEN = 'Bearer bypass-blog-token-2024';
+// Chave secreta para gerar tokens JWT (em produção, use variável de ambiente)
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your-supabase-jwt-secret';
 
-// Middleware para verificar o token de bypass do blog
-const verifyBlogBypass = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization;
+// Middleware para verificar token JWT do Supabase
+const verifySupabaseToken = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
   
-  if (!token || token !== BYPASS_BLOG_TOKEN) {
-    logger.warn('[BYPASS] Tentativa de acesso com token inválido:', token);
-    return res.status(401).json({ error: 'Token de autorização inválido ou não fornecido' });
+  if (!token) {
+    logger.warn('[BYPASS] Token não fornecido');
+    return res.status(401).json({ error: 'Token não fornecido' });
   }
   
-  logger.info('[BYPASS] Token de bypass validado com sucesso');
-  next();
+  try {
+    // Verificar o token JWT
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    
+    // Verificar se o token tem as claims necessárias do Supabase
+    if (!decoded.role || !decoded.sub) {
+      logger.warn('[BYPASS] Token inválido - claims ausentes');
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    
+    // Adicionar informações do token à requisição
+    req.user = {
+      id: decoded.sub,
+      role: decoded.role,
+      email: decoded.email
+    };
+    
+    logger.info('[BYPASS] Token Supabase validado com sucesso');
+    next();
+  } catch (error) {
+    logger.error('[BYPASS] Erro ao verificar token:', error);
+    return res.status(401).json({ error: 'Token inválido' });
+  }
 };
 
-// Rota bypass para posts do blog (com token fixo)
-app.post('/api/blog/posts', verifyBlogBypass, async (req: Request, res: Response) => {
+// Rota bypass para posts do blog (com autenticação Supabase)
+app.post('/api/blog/posts', verifySupabaseToken, async (req: Request, res: Response) => {
   try {
     logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
     logger.debug('[BYPASS] Headers:', req.headers);
@@ -106,7 +128,7 @@ app.post('/api/blog/posts', verifyBlogBypass, async (req: Request, res: Response
         content: data.content,
         tags: data.tags || [],
         image: data.image || null,
-        authorId: 'admin_bypass',
+        authorId: req.user?.id || 'admin_bypass',
         categoryId: data.categoryId,
         published: data.published || false,
         featured: data.featured || false,
