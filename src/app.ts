@@ -87,8 +87,31 @@ const verifySupabaseToken = (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-// Rota bypass para posts do blog (com autenticação Supabase)
-app.post('/api/blog/posts', verifySupabaseToken, async (req: Request, res: Response) => {
+// Chave de API para o blog (em produção, use variável de ambiente)
+const BLOG_API_KEY = process.env.BLOG_API_KEY || 'blog-secret-key-2024';
+
+// Rate limiting específico para a rota do blog
+const blogRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 50, // limite de 50 requisições por IP
+  message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
+});
+
+// Middleware para verificar a chave de API do blog
+const verifyBlogApiKey = (req: Request, res: Response, next: NextFunction) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (!apiKey || apiKey !== BLOG_API_KEY) {
+    logger.warn('[BYPASS] Tentativa de acesso sem API key válida');
+    return res.status(401).json({ error: 'API key inválida ou não fornecida' });
+  }
+  
+  logger.info('[BYPASS] API key validada com sucesso');
+  next();
+};
+
+// Rota bypass para posts do blog (com API key)
+app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request, res: Response) => {
   try {
     logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
     logger.debug('[BYPASS] Headers:', req.headers);
@@ -128,7 +151,7 @@ app.post('/api/blog/posts', verifySupabaseToken, async (req: Request, res: Respo
         content: data.content,
         tags: data.tags || [],
         image: data.image || null,
-        authorId: req.user?.id || 'admin_bypass',
+        authorId: 'admin_bypass', // Usando ID fixo para bypass
         categoryId: data.categoryId,
         published: data.published || false,
         featured: data.featured || false,
