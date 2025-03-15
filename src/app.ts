@@ -14,19 +14,23 @@ import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import jwt from 'jsonwebtoken';
+import { Clerk } from '@clerk/clerk-sdk-node';
 
 const app = express();
+
+// Inicializar Clerk
+const clerk = new Clerk({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // Configurações básicas
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configuração CORS simplificada
+// Configuração CORS atualizada
 app.use(cors({
-  origin: '*',
+  origin: ['https://anunciargrajaueregiao.com', 'http://localhost:5173'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
-    'Content-Type', 
+    'Content-Type',
     'Authorization',
     'X-User-ID',
     'X-User-Email',
@@ -59,42 +63,56 @@ app.use(logRequest);
 // Chave secreta para gerar tokens JWT (em produção, use variável de ambiente)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
 
-// Middleware simplificado para verificar JWT
-const verifyJWT = (req: Request, res: Response, next: NextFunction) => {
-  logger.info('[JWT] Iniciando verificação do token');
-  
-  const authHeader = req.headers.authorization;
-  logger.debug('[JWT] Authorization header:', authHeader);
-  
-  const token = authHeader?.split(' ')[1];
-  
-  logger.debug('[JWT] Headers recebidos:', JSON.stringify(req.headers, null, 2));
-  
-  if (!token) {
-    logger.warn('[JWT] Token não fornecido');
-    return res.status(401).json({ error: 'Token não fornecido' });
-  }
-  
+// Middleware atualizado para verificar JWT do Clerk
+const verifyJWT = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    logger.debug('[JWT] Tentando verificar token com JWT_SECRET');
-    // Verificar o token JWT
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    logger.debug('[JWT] Token decodificado:', JSON.stringify(decoded, null, 2));
+    logger.info('[AUTH] Iniciando verificação do token');
     
-    // Adicionar informações do usuário à requisição
-    req.user = {
-      id: decoded.sub,
-      clerkId: decoded.sub,
-      role: decoded.role || 'user',
-      email: decoded.email
-    };
+    const authHeader = req.headers.authorization;
+    logger.debug('[AUTH] Authorization header:', authHeader);
     
-    logger.info('[JWT] Token validado com sucesso. User:', JSON.stringify(req.user, null, 2));
-    next();
+    if (!authHeader?.startsWith('Bearer ')) {
+      logger.warn('[AUTH] Token não fornecido ou formato inválido');
+      return res.status(401).json({ 
+        error: 'Token não fornecido ou formato inválido',
+        code: 'NO_TOKEN'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    try {
+      // Verificar o token com o Clerk
+      const session = await clerk.sessions.verifySession(token);
+      logger.debug('[AUTH] Sessão verificada:', session);
+
+      // Buscar informações do usuário
+      const user = await clerk.users.getUser(session.userId);
+      logger.debug('[AUTH] Usuário encontrado:', user);
+
+      // Adicionar informações do usuário à requisição
+      req.user = {
+        id: user.id,
+        clerkId: user.id,
+        role: user.publicMetadata?.role || 'user',
+        email: user.emailAddresses[0]?.emailAddress
+      };
+
+      logger.info('[AUTH] Token validado com sucesso. User:', JSON.stringify(req.user, null, 2));
+      next();
+    } catch (error) {
+      logger.error('[AUTH] Erro ao verificar token:', error);
+      return res.status(401).json({ 
+        error: 'Token inválido',
+        code: 'INVALID_TOKEN',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
+    }
   } catch (error) {
-    logger.error('[JWT] Erro ao verificar token:', error);
-    return res.status(401).json({ 
-      error: 'Token inválido',
+    logger.error('[AUTH] Erro no middleware de autenticação:', error);
+    return res.status(500).json({ 
+      error: 'Erro interno no servidor',
+      code: 'SERVER_ERROR',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
