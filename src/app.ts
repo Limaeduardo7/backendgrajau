@@ -25,7 +25,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization',
+    'X-User-ID',
+    'X-User-Email',
+    'X-User-Role'
+  ],
   credentials: true
 }));
 
@@ -51,39 +57,46 @@ app.use(logRequest);
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
 // Chave secreta para gerar tokens JWT (em produção, use variável de ambiente)
-const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'your-supabase-jwt-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
 
-// Middleware para verificar token JWT do Supabase
-const verifySupabaseToken = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization?.split(' ')[1];
+// Middleware simplificado para verificar JWT
+const verifyJWT = (req: Request, res: Response, next: NextFunction) => {
+  logger.info('[JWT] Iniciando verificação do token');
+  
+  const authHeader = req.headers.authorization;
+  logger.debug('[JWT] Authorization header:', authHeader);
+  
+  const token = authHeader?.split(' ')[1];
+  
+  logger.debug('[JWT] Headers recebidos:', JSON.stringify(req.headers, null, 2));
   
   if (!token) {
-    logger.warn('[BYPASS] Token não fornecido');
+    logger.warn('[JWT] Token não fornecido');
     return res.status(401).json({ error: 'Token não fornecido' });
   }
   
   try {
+    logger.debug('[JWT] Tentando verificar token com JWT_SECRET');
     // Verificar o token JWT
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    logger.debug('[JWT] Token decodificado:', JSON.stringify(decoded, null, 2));
     
-    // Verificar se o token tem as claims necessárias do Supabase
-    if (!decoded.role || !decoded.sub) {
-      logger.warn('[BYPASS] Token inválido - claims ausentes');
-      return res.status(401).json({ error: 'Token inválido' });
-    }
-    
-    // Adicionar informações do token à requisição
+    // Adicionar informações do usuário à requisição
     req.user = {
       id: decoded.sub,
-      role: decoded.role,
+      clerkId: decoded.sub,
+      role: decoded.role || 'user',
       email: decoded.email
     };
     
-    logger.info('[BYPASS] Token Supabase validado com sucesso');
+    logger.info('[JWT] Token validado com sucesso. User:', JSON.stringify(req.user, null, 2));
     next();
   } catch (error) {
-    logger.error('[BYPASS] Erro ao verificar token:', error);
-    return res.status(401).json({ error: 'Token inválido' });
+    logger.error('[JWT] Erro ao verificar token:', error);
+    return res.status(401).json({ 
+      error: 'Token inválido',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
   }
 };
 
@@ -110,12 +123,12 @@ const verifyBlogApiKey = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-// Rota bypass para posts do blog (com API key)
-app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request, res: Response) => {
+// Rota do blog com autenticação JWT
+app.post('/api/blog/posts', verifyJWT, async (req: Request, res: Response) => {
   try {
-    logger.info('[BYPASS] Recebida requisição POST /api/blog/posts');
-    logger.debug('[BYPASS] Headers:', req.headers);
-    logger.debug('[BYPASS] Body:', req.body);
+    logger.info('[BLOG] Recebida requisição POST /api/blog/posts');
+    logger.debug('[BLOG] User:', JSON.stringify(req.user, null, 2));
+    logger.debug('[BLOG] Body:', JSON.stringify(req.body, null, 2));
 
     // Acessar o prisma diretamente
     const prisma = (await import('./config/prisma')).default;
@@ -124,7 +137,12 @@ app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request
     
     // Verificar dados obrigatórios
     if (!data.title || !data.content || !data.categoryId) {
-      return res.status(400).json({ error: 'Título, conteúdo e categoria são obrigatórios' });
+      logger.warn('[BLOG] Dados obrigatórios ausentes');
+      return res.status(400).json({ 
+        error: 'Dados incompletos',
+        required: ['title', 'content', 'categoryId'],
+        received: Object.keys(data)
+      });
     }
     
     // Slugify - implementação simples
@@ -140,10 +158,11 @@ app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request
     });
     
     if (existingPost) {
+      logger.warn('[BLOG] Tentativa de criar post com título duplicado');
       return res.status(400).json({ error: 'Já existe um post com este título' });
     }
     
-    // Criar post diretamente
+    // Criar post usando o ID do usuário autenticado
     const post = await prisma.blogPost.create({
       data: {
         title: data.title,
@@ -151,11 +170,11 @@ app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request
         content: data.content,
         tags: data.tags || [],
         image: data.image || null,
-        authorId: 'admin_bypass', // Usando ID fixo para bypass
+        authorId: req.user.id, // Usando ID do usuário autenticado
         categoryId: data.categoryId,
-        published: data.published || false,
-        featured: data.featured || false,
-        publishedAt: data.published ? new Date() : null
+        published: true,
+        featured: false,
+        publishedAt: new Date()
       },
       include: {
         author: {
@@ -168,11 +187,14 @@ app.post('/api/blog/posts', blogRateLimit, verifyBlogApiKey, async (req: Request
       },
     });
     
-    logger.info(`Post criado com sucesso: ${post.id}`);
+    logger.info(`[BLOG] Post criado com sucesso: ${post.id}`);
     return res.status(201).json(post);
   } catch (error) {
-    logger.error('[BYPASS] Erro ao criar post:', error);
-    return res.status(500).json({ error: 'Erro interno ao criar post' });
+    logger.error('[BLOG] Erro ao criar post:', error);
+    return res.status(500).json({ 
+      error: 'Erro interno ao criar post',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
   }
 });
 
@@ -217,15 +239,26 @@ if (process.env.NODE_ENV === 'production') {
   app.use(sentryRequestHandler);
 }
 
-// Middleware de autenticação (exceto para rotas bypass)
+// Middleware de autenticação (exceto para rotas públicas)
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Não aplicar autenticação para a rota bypass
-  if (req.path === '/api/blog/posts' && req.method === 'POST') {
+  // Lista de rotas públicas
+  const publicRoutes = [
+    { path: '/api/blog/posts', method: 'POST' },
+    { path: '/api/admin/stats', method: 'GET' }
+  ];
+
+  // Verificar se é uma rota pública
+  const isPublicRoute = publicRoutes.some(route => 
+    route.path === req.path && route.method === req.method
+  );
+
+  if (isPublicRoute) {
+    logger.debug(`[AUTH] Rota pública acessada: ${req.method} ${req.path}`);
     return next();
   }
   
-  // Aplicar middleware de autenticação para todas as outras rotas
-  return sessionRecoveryMiddleware(req, res, next);
+  // Aplicar middleware de autenticação do Clerk
+  return verifyJWT(req, res, next);
 });
 
 // Rotas da API
