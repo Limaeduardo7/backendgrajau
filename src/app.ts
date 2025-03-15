@@ -60,6 +60,8 @@ app.use(logRequest);
 const verifyJWT = (req: Request, res: Response, next: NextFunction) => {
   try {
     logger.info('[AUTH] Iniciando verificação do token');
+    logger.debug('[AUTH] Headers completos:', req.headers);
+    logger.debug('[AUTH] JWT_SECRET configurado:', !!process.env.JWT_SECRET);
     
     const authHeader = req.headers.authorization;
     logger.debug('[AUTH] Authorization header:', authHeader);
@@ -73,10 +75,19 @@ const verifyJWT = (req: Request, res: Response, next: NextFunction) => {
     }
 
     const token = authHeader.split(' ')[1];
+    logger.debug('[AUTH] Token extraído:', token.substring(0, 20) + '...');
+    
+    if (!process.env.JWT_SECRET) {
+      logger.error('[AUTH] JWT_SECRET não configurado no ambiente');
+      return res.status(500).json({ 
+        error: 'Erro de configuração do servidor',
+        code: 'NO_JWT_SECRET'
+      });
+    }
     
     try {
       // Verificar o token JWT usando a chave do Supabase
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
       logger.debug('[AUTH] Token decodificado:', JSON.stringify(decoded, null, 2));
 
       // Adicionar informações do usuário à requisição
@@ -251,14 +262,13 @@ if (process.env.NODE_ENV === 'production') {
   app.use(sentryRequestHandler);
 }
 
+// Remover a rota do blog da lista de rotas públicas
+const publicRoutes = [
+  { path: '/api/admin/stats', method: 'GET' }
+];
+
 // Middleware de autenticação (exceto para rotas públicas)
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Lista de rotas públicas
-  const publicRoutes = [
-    { path: '/api/blog/posts', method: 'POST' },
-    { path: '/api/admin/stats', method: 'GET' }
-  ];
-
   // Verificar se é uma rota pública
   const isPublicRoute = publicRoutes.some(route => 
     route.path === req.path && route.method === req.method
@@ -269,7 +279,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return next();
   }
   
-  // Aplicar middleware de autenticação do Clerk
+  // Aplicar middleware de autenticação JWT
   return verifyJWT(req, res, next);
 });
 
