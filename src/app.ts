@@ -36,32 +36,27 @@ app.use(cors({
   credentials: true
 }));
 
-// Configurações de segurança básicas
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false
-}));
-
-// Rate limiting básico
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 1000
-}));
-
-// Middleware de sanitização global
-app.use(sanitizeData);
-
-// Middleware de log
-app.use(logRequest);
+// Log de todas as requisições
+app.use((req: Request, res: Response, next: NextFunction) => {
+  logger.info(`[REQUEST] ${req.method} ${req.path}`);
+  logger.debug('[REQUEST] Headers:', req.headers);
+  logger.debug('[REQUEST] Body:', req.body);
+  next();
+});
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
+// Rota de teste para verificar se o servidor está respondendo
+app.get('/public/test', (req: Request, res: Response) => {
+  logger.info('[PUBLIC API] Teste de rota pública');
+  res.json({ message: 'Rota pública funcionando!' });
+});
+
 // Rota pública para criar posts no blog sem qualquer autenticação
-app.post('/public/blog/posts', async (req: Request, res: Response) => {
-  // Configuração CORS específica para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+app.post('/public/blog/posts', express.json(), async (req: Request, res: Response) => {
+  logger.info('[PUBLIC API] Iniciando POST /public/blog/posts');
+  logger.debug('[PUBLIC API] Headers:', req.headers);
+  logger.debug('[PUBLIC API] Body:', req.body);
   
   try {
     logger.info('[PUBLIC API] Recebida requisição POST /public/blog/posts');
@@ -246,22 +241,35 @@ app.get('/public/blog/posts/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Adicionar suporte para OPTIONS preflight para todas as rotas públicas
-app.options('/public/blog/*', (req, res) => {
+// Adicionar OPTIONS handler global para rotas públicas
+app.options('/public/*', (req: Request, res: Response) => {
+  logger.info(`[CORS] Handling OPTIONS for ${req.path}`);
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.status(204).send();
 });
 
 // ======= FIM DAS ROTAS PÚBLICAS ========
 
-// Configurações de segurança e outros middlewares
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
-  sentry.initSentry();
-  app.use(sentryRequestHandler);
-}
+// Configurações de segurança
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting básico
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000
+}));
+
+// Middleware de sanitização global
+app.use(sanitizeData);
+
+// Middleware de log
+app.use(logRequest);
 
 // Remover a rota do blog da lista de rotas públicas
 const publicRoutes = [
