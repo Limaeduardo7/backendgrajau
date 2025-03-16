@@ -390,6 +390,182 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   return verifyJWT(req, res, next);
 });
 
+// ====== NOVAS ROTAS PÚBLICAS PARA TESTES NO POSTMAN ======
+
+// Rota pública para criar posts no blog sem qualquer autenticação
+app.post('/public/blog/posts', async (req: Request, res: Response) => {
+  try {
+    logger.info('[PUBLIC API] Recebida requisição POST /public/blog/posts');
+    logger.debug('[PUBLIC API] Body:', JSON.stringify(req.body, null, 2));
+    
+    // Acessar o prisma diretamente
+    const prisma = (await import('./config/prisma')).default;
+    
+    const data = req.body;
+    
+    // Verificar dados obrigatórios
+    if (!data.title || !data.content || !data.categoryId) {
+      logger.warn('[PUBLIC API] Dados obrigatórios ausentes');
+      return res.status(400).json({ 
+        error: 'Dados incompletos',
+        required: ['title', 'content', 'categoryId'],
+        received: Object.keys(data)
+      });
+    }
+    
+    // Slugify - implementação simples
+    const slug = data.title
+      .toLowerCase()
+      .replace(/ /g, '-')
+      .replace(/[^\w-]+/g, '')
+      .replace(/--+/g, '-');
+    
+    // Verificar se slug já existe
+    const existingPost = await prisma.blogPost.findUnique({
+      where: { slug }
+    });
+    
+    if (existingPost) {
+      logger.warn('[PUBLIC API] Tentativa de criar post com título duplicado');
+      return res.status(400).json({ error: 'Já existe um post com este título' });
+    }
+    
+    // ID fixo de um usuário para teste
+    const testUser = await prisma.user.findFirst({
+      where: {
+        role: 'ADMIN'
+      }
+    });
+    
+    if (!testUser) {
+      logger.error('[PUBLIC API] Nenhum usuário ADMIN encontrado no banco de dados');
+      return res.status(500).json({ error: 'Erro ao encontrar usuário para criar o post' });
+    }
+    
+    // Criar post usando o ID do primeiro usuário ADMIN encontrado
+    const post = await prisma.blogPost.create({
+      data: {
+        title: data.title,
+        slug,
+        content: data.content,
+        tags: data.tags || [],
+        image: data.image || null,
+        authorId: testUser.id,
+        categoryId: data.categoryId,
+        published: true,
+        featured: false,
+        publishedAt: new Date()
+      }
+    });
+    
+    logger.info(`[PUBLIC API] Post criado com sucesso: ${post.id}`);
+    res.status(201).json(post);
+  } catch (error) {
+    logger.error('[PUBLIC API] Erro ao criar post:', error);
+    res.status(500).json({ error: 'Erro ao criar post' });
+  }
+});
+
+// Rota pública para listar as categorias do blog
+app.get('/public/blog/categories', async (req: Request, res: Response) => {
+  try {
+    logger.info('[PUBLIC API] Recebida requisição GET /public/blog/categories');
+    
+    // Acessar o prisma diretamente
+    const prisma = (await import('./config/prisma')).default;
+    
+    // Buscar todas as categorias
+    const categories = await prisma.blogCategory.findMany({
+      orderBy: {
+        name: 'asc'
+      }
+    });
+    
+    logger.info(`[PUBLIC API] ${categories.length} categorias recuperadas com sucesso`);
+    res.status(200).json(categories);
+  } catch (error) {
+    logger.error('[PUBLIC API] Erro ao listar categorias:', error);
+    res.status(500).json({ error: 'Erro ao listar categorias' });
+  }
+});
+
+// Rota pública para listar os posts do blog
+app.get('/public/blog/posts', async (req: Request, res: Response) => {
+  try {
+    logger.info('[PUBLIC API] Recebida requisição GET /public/blog/posts');
+    
+    // Acessar o prisma diretamente
+    const prisma = (await import('./config/prisma')).default;
+    
+    // Buscar todos os posts
+    const posts = await prisma.blogPost.findMany({
+      where: {
+        published: true
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        category: true
+      },
+      orderBy: {
+        publishedAt: 'desc'
+      }
+    });
+    
+    logger.info(`[PUBLIC API] ${posts.length} posts recuperados com sucesso`);
+    res.status(200).json(posts);
+  } catch (error) {
+    logger.error('[PUBLIC API] Erro ao listar posts:', error);
+    res.status(500).json({ error: 'Erro ao listar posts' });
+  }
+});
+
+// Rota pública para buscar um post específico
+app.get('/public/blog/posts/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    logger.info(`[PUBLIC API] Recebida requisição GET /public/blog/posts/${id}`);
+    
+    // Acessar o prisma diretamente
+    const prisma = (await import('./config/prisma')).default;
+    
+    // Buscar o post pelo ID
+    const post = await prisma.blogPost.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        category: true,
+        comments: {
+          where: { approved: true },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+    
+    if (!post) {
+      logger.warn(`[PUBLIC API] Post com ID ${id} não encontrado`);
+      return res.status(404).json({ error: 'Post não encontrado' });
+    }
+    
+    logger.info(`[PUBLIC API] Post ${id} recuperado com sucesso`);
+    res.status(200).json(post);
+  } catch (error) {
+    logger.error('[PUBLIC API] Erro ao buscar post:', error);
+    res.status(500).json({ error: 'Erro ao buscar post' });
+  }
+});
+
 // Rotas da API
 app.use('/api', routes);
 
