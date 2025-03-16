@@ -345,7 +345,9 @@ if (process.env.NODE_ENV === 'production') {
 
 // Remover a rota do blog da lista de rotas públicas
 const publicRoutes = [
-  { path: '/api/admin/stats', method: 'GET' }
+  { path: '/api/admin/stats', method: 'GET' },
+  { path: '/api/blog/posts', method: 'POST' },
+  { path: '/api/blog/posts-public', method: 'POST' }
 ];
 
 // Middleware de autenticação (exceto para rotas públicas)
