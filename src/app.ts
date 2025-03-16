@@ -17,11 +17,6 @@ import publicRoutes from './routes/public.routes';
 
 const app = express();
 
-// Rota de teste básica (antes de qualquer middleware)
-app.get('/test', (req: Request, res: Response) => {
-  res.json({ message: 'Servidor está funcionando!' });
-});
-
 // Configurações básicas
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -54,10 +49,9 @@ app.use('/public', publicRoutes);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
-// Rota de teste para verificar se o servidor está respondendo
-app.get('/public/test', (req: Request, res: Response) => {
-  logger.info('[PUBLIC API] Teste de rota pública');
-  res.json({ message: 'Rota pública funcionando!' });
+// Rota de teste básica
+app.get('/test', (req: Request, res: Response) => {
+  res.json({ message: 'Servidor está funcionando!' });
 });
 
 // Rota pública para criar posts no blog sem qualquer autenticação
