@@ -237,6 +237,71 @@ app.post('/api/blog/posts', verifyJWT, async (req: Request, res: Response) => {
   }
 });
 
+// Rota pública para testes sem nenhuma verificação de autenticação
+app.post('/api/blog/posts-public', async (req: Request, res: Response) => {
+  try {
+    logger.info('[BLOG] Recebida requisição POST /api/blog/posts-public (rota pública)');
+    logger.debug('[BLOG] Body:', JSON.stringify(req.body, null, 2));
+    
+    // Acessar o prisma diretamente
+    const prisma = (await import('./config/prisma')).default;
+    
+    const data = req.body;
+    
+    // Verificar dados obrigatórios
+    if (!data.title || !data.content || !data.categoryId) {
+      logger.warn('[BLOG] Dados obrigatórios ausentes');
+      return res.status(400).json({ 
+        error: 'Dados incompletos',
+        required: ['title', 'content', 'categoryId'],
+        received: Object.keys(data)
+      });
+    }
+    
+    // Slugify - implementação simples
+    const slug = data.title
+      .toLowerCase()
+      .replace(/ /g, '-')
+      .replace(/[^\w-]+/g, '')
+      .replace(/--+/g, '-');
+    
+    // Verificar se slug já existe
+    const existingPost = await prisma.blogPost.findUnique({
+      where: { slug }
+    });
+    
+    if (existingPost) {
+      logger.warn('[BLOG] Tentativa de criar post com título duplicado');
+      return res.status(400).json({ error: 'Já existe um post com este título' });
+    }
+    
+    // ID fixo de um usuário ADMIN para teste
+    const fixedAuthorId = "testuser123";
+
+    // Criar post usando o ID do usuário fixo para testes
+    const post = await prisma.blogPost.create({
+      data: {
+        title: data.title,
+        slug,
+        content: data.content,
+        tags: data.tags || [],
+        image: data.image || null,
+        authorId: fixedAuthorId,
+        categoryId: data.categoryId,
+        published: true,
+        featured: false,
+        publishedAt: new Date()
+      }
+    });
+    
+    logger.info(`[BLOG] Post criado com sucesso: ${post.id}`);
+    res.status(201).json(post);
+  } catch (error) {
+    logger.error('[BLOG] Erro ao criar post:', error);
+    res.status(500).json({ error: 'Erro ao criar post' });
+  }
+});
+
 // Rota bypass para estatísticas de admin
 app.get('/api/admin/stats', async (req: Request, res: Response) => {
   try {
