@@ -37,6 +37,21 @@ export interface AuthRequest extends Request {
 // Middleware para verificar autenticação usando Clerk
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    logger.info('[AUTH] Modo temporário de teste - autenticação desativada');
+    
+    // Adicionar informações de usuário temporário para testes
+    req.user = {
+      id: "user_test_temporary",
+      clerkId: "user_test_temporary",
+      role: Role.ADMIN,
+      email: "test@example.com"
+    };
+    
+    logger.info('[AUTH] Usuário de teste configurado');
+    return next();
+    
+    // Código original comentado
+    /*
     // Verificar se há um token de autorização
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -97,6 +112,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       role: user.role,
       email: user.email
     };
+    */
 
     next();
   } catch (error) {
@@ -109,6 +125,23 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 export const requireRole = (roles: Role[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
+      logger.info('[AUTH] Modo temporário de teste - verificação de papel desativada');
+      
+      // Se o usuário não foi definido pelo middleware anterior, defina-o agora
+      if (!req.user) {
+        req.user = {
+          id: "user_test_temporary",
+          clerkId: "user_test_temporary",
+          role: Role.ADMIN,
+          email: "test@example.com"
+        };
+      }
+      
+      logger.info('[AUTH] Usuário de teste configurado para verificação de papel');
+      return next();
+      
+      // Código original comentado
+      /*
       if (!req.user) {
         logger.warn('Usuário não encontrado na requisição');
         return res.status(401).json({ error: 'Não autorizado - Usuário não encontrado' });
@@ -120,6 +153,7 @@ export const requireRole = (roles: Role[]) => {
         logger.warn(`Acesso negado - Usuário com papel ${userRole} tentou acessar rota que requer um dos papéis: ${roles.join(', ')}`);
         return res.status(403).json({ error: 'Acesso negado - Papel insuficiente' });
       }
+      */
 
       next();
     } catch (error) {
