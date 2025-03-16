@@ -13,6 +13,7 @@ import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentr
 import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
 import path from 'path';
 import jwt from 'jsonwebtoken';
+import publicRoutes from './routes/public.routes';
 
 const app = express();
 
@@ -47,6 +48,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   logger.debug('[REQUEST] Body:', req.body);
   next();
 });
+
+// Rotas públicas (sem autenticação)
+app.use('/public', publicRoutes);
 
 // ======= INÍCIO DAS ROTAS PÚBLICAS (ALTA PRIORIDADE) ========
 
