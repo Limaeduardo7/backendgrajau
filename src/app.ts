@@ -279,8 +279,8 @@ app.use(sanitizeData);
 // Middleware de log
 app.use(logRequest);
 
-// Remover a rota do blog da lista de rotas públicas
-const publicRoutes = [
+// Lista de rotas que não precisam de autenticação
+const publicPaths = [
   { path: '/api/admin/stats', method: 'GET' },
   { path: '/api/blog/posts', method: 'POST' },
   { path: '/api/blog/posts-public', method: 'POST' }
@@ -289,11 +289,11 @@ const publicRoutes = [
 // Middleware de autenticação (exceto para rotas públicas)
 app.use((req: Request, res: Response, next: NextFunction) => {
   // Verificar se é uma rota pública
-  const isPublicRoute = publicRoutes.some(route => 
+  const isPublicPath = publicPaths.some(route => 
     route.path === req.path && route.method === req.method
   );
 
-  if (isPublicRoute) {
+  if (isPublicPath) {
     logger.debug(`[AUTH] Rota pública acessada: ${req.method} ${req.path}`);
     return next();
   }
