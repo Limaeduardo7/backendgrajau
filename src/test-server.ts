@@ -1,55 +1,28 @@
 import express from 'express';
-import dotenv from 'dotenv';
-import mercadopago from './config/payment';
-
-// Carregar variáveis de ambiente
-dotenv.config();
+import cors from 'cors';
 
 const app = express();
+
+// Configurações básicas
 app.use(express.json());
+app.use(cors());
 
-// Rota para testar o Mercado Pago
-app.get('/test-mercadopago', async (req, res) => {
-  try {
-    // Criar uma preferência de pagamento simples
-    const preference = await mercadopago.preferences.create({
-      items: [
-        {
-          title: 'Produto de teste',
-          quantity: 1,
-          currency_id: 'BRL',
-          unit_price: 10.0
-        }
-      ],
-      back_urls: {
-        success: 'http://localhost:3000/success',
-        failure: 'http://localhost:3000/failure',
-        pending: 'http://localhost:3000/pending'
-      },
-      auto_return: 'approved'
-    });
-
-    res.json({
-      message: 'Mercado Pago está funcionando corretamente',
-      preferenceId: preference.body.id,
-      initPoint: preference.body.init_point
-    });
-  } catch (error: any) {
-    console.error('Erro ao testar o Mercado Pago:', error);
-    res.status(500).json({
-      message: 'Erro ao testar o Mercado Pago',
-      error: error.message
-    });
-  }
+// Rota de teste
+app.get('/test', (req, res) => {
+  res.json({ message: 'Servidor de teste está funcionando!' });
 });
 
-// Rota para verificar se o servidor está funcionando
-app.get('/', (req, res) => {
-  res.json({ message: 'Servidor de teste funcionando!' });
+// Rota para criar post
+app.post('/public/blog/posts', (req, res) => {
+  console.log('Recebida requisição POST:', req.body);
+  res.json({ 
+    message: 'Rota POST funcionando!',
+    receivedData: req.body 
+  });
 });
 
+// Inicia o servidor
 const PORT = 3001;
-
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor de teste rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor de teste rodando em http://localhost:${PORT}`);
 }); 

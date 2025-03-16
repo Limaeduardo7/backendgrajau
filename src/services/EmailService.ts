@@ -1,4 +1,5 @@
-import { resend } from '../config/resend';
+import { resend, emailFrom } from '../config/resend';
+import logger from '../config/logger';
 
 // Tipo para dados de email
 interface EmailData {
@@ -13,16 +14,26 @@ interface EmailData {
 }
 
 class EmailService {
-  private defaultFrom: string;
+  private static instance: EmailService;
 
-  constructor() {
-    this.defaultFrom = 'no-reply@anunciargrajau.com.br';
+  private constructor() {}
+
+  public static getInstance(): EmailService {
+    if (!EmailService.instance) {
+      EmailService.instance = new EmailService();
+    }
+    return EmailService.instance;
   }
 
   // Enviar email genérico
   async sendEmail(data: EmailData): Promise<boolean> {
     try {
-      const { to, subject, html, from = this.defaultFrom, text, cc, bcc, replyTo } = data;
+      if (!resend) {
+        logger.warn('Serviço de email não configurado. Email não será enviado.');
+        return false;
+      }
+
+      const { to, subject, html, from = emailFrom || 'noreply@anunciargrajaueregiao.com', text, cc, bcc, replyTo } = data;
 
       await resend.emails.send({
         from,
@@ -35,9 +46,10 @@ class EmailService {
         reply_to: replyTo,
       });
 
+      logger.info(`Email enviado com sucesso para ${to}`);
       return true;
     } catch (error) {
-      console.error('Erro ao enviar email:', error);
+      logger.error('Erro ao enviar email:', error);
       return false;
     }
   }
@@ -215,4 +227,4 @@ class EmailService {
   }
 }
 
-export default new EmailService(); 
+export default EmailService.getInstance(); 

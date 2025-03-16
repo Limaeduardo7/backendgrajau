@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import applicationController from '../controllers/application.controller';
+import { ApplicationController } from '../controllers/application.controller';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 
 const router = Router();
+const applicationController = new ApplicationController();
 
 // Candidatar-se a uma vaga
 router.post('/jobs/:jobId/apply', requireAuth, applicationController.applyToJob);

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
@@ -11,11 +11,15 @@ import { sanitizeData } from './middlewares/sanitizer.middleware';
 import logger, { logRequest } from './config/logger';
 import sentry, { sentryRequestHandler, sentryErrorHandler } from './config/sentry';
 import { sessionRecoveryMiddleware } from './middlewares/auth.middleware';
-import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 
 const app = express();
+
+// Rota de teste básica (antes de qualquer middleware)
+app.get('/test', (req: Request, res: Response) => {
+  res.json({ message: 'Servidor está funcionando!' });
+});
 
 // Configurações básicas
 app.use(express.json());

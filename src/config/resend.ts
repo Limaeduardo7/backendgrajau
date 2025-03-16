@@ -1,23 +1,15 @@
-// Importar o Resend usando require
-const { Resend } = require('resend');
-import { config } from 'dotenv';
+import { Resend } from 'resend';
 import logger from './logger';
 
-config();
+const resendApiKey = process.env.RESEND_API_KEY;
+const emailFrom = process.env.EMAIL_FROM;
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-let resendInstance = null;
+let resend: Resend | null = null;
 
-try {
-  if (RESEND_API_KEY) {
-    resendInstance = new Resend(RESEND_API_KEY);
-    logger.info('Serviço Resend inicializado com sucesso');
-  } else {
-    logger.warn('Chave de API do Resend não configurada. Serviço de email desativado.');
-  }
-} catch (error) {
-  logger.error('Erro ao inicializar o serviço Resend:', error);
+if (resendApiKey) {
+  resend = new Resend(resendApiKey);
+} else {
+  logger.warn('Chave de API do Resend não configurada. Serviço de email desativado.');
 }
 
-// Exporta o resend (pode ser null se a configuração falhar)
-export const resend = resendInstance; 
+export { resend, emailFrom }; 

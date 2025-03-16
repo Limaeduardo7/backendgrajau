@@ -1,14 +1,18 @@
 import EmailService from '../../../services/EmailService';
 import { resend } from '../../../config/resend';
+import logger from '../../../config/logger';
 
 // Mock do módulo resend
 jest.mock('../../../config/resend', () => ({
   resend: {
     emails: {
-      send: jest.fn().mockResolvedValue({ id: 'test-email-id', status: 'success' }),
-    },
+      send: jest.fn()
+    }
   },
+  emailFrom: 'test@example.com'
 }));
+
+jest.mock('../../../config/logger');
 
 describe('EmailService', () => {
   beforeEach(() => {
@@ -19,36 +23,52 @@ describe('EmailService', () => {
     it('deve enviar um email com sucesso', async () => {
       const emailData = {
         to: 'test@example.com',
-        subject: 'Teste',
-        html: '<p>Conteúdo do teste</p>',
+        subject: 'Test Subject',
+        html: '<p>Test content</p>'
       };
+
+      (resend?.emails.send as jest.Mock).mockResolvedValueOnce({ id: '123' });
 
       const result = await EmailService.sendEmail(emailData);
 
       expect(result).toBe(true);
-      expect(resend.emails.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: emailData.to,
-          subject: emailData.subject,
-          html: emailData.html,
-        })
-      );
+      expect(resend?.emails.send).toHaveBeenCalledWith({
+        from: 'test@example.com',
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.html
+      });
     });
 
     it('deve retornar false quando ocorrer um erro', async () => {
-      // Mock de erro
-      (resend.emails.send as jest.Mock).mockRejectedValueOnce(new Error('Erro ao enviar email'));
+      const emailData = {
+        to: 'test@example.com',
+        subject: 'Test Subject',
+        html: '<p>Test content</p>'
+      };
+
+      (resend?.emails.send as jest.Mock).mockRejectedValueOnce(new Error('Erro ao enviar email'));
+
+      const result = await EmailService.sendEmail(emailData);
+
+      expect(result).toBe(false);
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('deve retornar false quando o serviço não estiver configurado', async () => {
+      const mockResend = jest.requireMock('../../../config/resend');
+      mockResend.resend = null;
 
       const emailData = {
         to: 'test@example.com',
-        subject: 'Teste',
-        html: '<p>Conteúdo do teste</p>',
+        subject: 'Test Subject',
+        html: '<p>Test content</p>'
       };
 
       const result = await EmailService.sendEmail(emailData);
 
       expect(result).toBe(false);
-      expect(resend.emails.send).toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith('Serviço de email não configurado. Email não será enviado.');
     });
   });
 

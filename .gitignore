@@ -48,3 +48,5 @@ backups/
 
 # Prisma
 .prisma/ 
+# Local Netlify folder
+.netlify
