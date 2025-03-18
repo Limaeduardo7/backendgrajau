@@ -96,19 +96,10 @@ app.post('/public/blog/posts', express.json(), async (req: Request, res: Respons
       return res.status(400).json({ error: 'Já existe um post com este título' });
     }
     
-    // ID fixo de um usuário para teste
-    const testUser = await prisma.user.findFirst({
-      where: {
-        role: 'ADMIN'
-      }
-    });
+    // Usar o ID fixo do usuário admin que foi criado
+    const adminId = 'admin_user';
     
-    if (!testUser) {
-      logger.error('[PUBLIC API] Nenhum usuário ADMIN encontrado no banco de dados');
-      return res.status(500).json({ error: 'Erro ao encontrar usuário para criar o post' });
-    }
-    
-    // Criar post usando o ID do primeiro usuário ADMIN encontrado
+    // Criar post usando o ID do admin
     const post = await prisma.blogPost.create({
       data: {
         title: data.title,
@@ -116,7 +107,7 @@ app.post('/public/blog/posts', express.json(), async (req: Request, res: Respons
         content: data.content,
         tags: data.tags || [],
         image: data.image || null,
-        authorId: testUser.id,
+        authorId: adminId, // ID fixo do admin
         categoryId: data.categoryId,
         published: true,
         featured: false,
